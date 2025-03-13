@@ -8,7 +8,10 @@ public class DisruptorWorkerTest {
     @Test
     public void testStart() throws Exception {
         DataSourceManager dataSourceManager = DataSourceManager.getInstance();
-        DisruptorWorker worker = new DisruptorWorker(dataSourceManager.getDataSource(), 1024, 4, 8);
+        RedisManager redisManager = RedisManager.getInstance();
+        DisruptorWorker worker = new DisruptorWorker(redisManager.getClient(),
+                dataSourceManager.getDataSource(), 1024,
+                4, 8);
         worker.start();
 
         worker.register("TestWorkHandler", new TestWorkHandler(), 2);

@@ -40,7 +40,7 @@ public class MysqlWorkerStore implements WorkerStore {
     }
 
     @Override
-    public List<WorkContext> getPendingWorkers(int limit) throws Exception {
+    public List<WorkContext> getWorkersByStatus(WorkerStatus status, int limit) throws Exception {
         List<WorkContext> jobs = new ArrayList<>();
 
         try (Connection conn = dataSource.getConnection();
@@ -51,7 +51,7 @@ public class MysqlWorkerStore implements WorkerStore {
                                 "ORDER BY priority DESC, created_at ASC " +
                                 "LIMIT ?")) {
 
-            stmt.setString(1, WorkerStatus.PENDING.name());
+            stmt.setString(1, status.name());
             stmt.setInt(2, limit);
 
             try (ResultSet rs = stmt.executeQuery()) {

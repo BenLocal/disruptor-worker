@@ -14,6 +14,8 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
+import org.redisson.api.RedissonClient;
+
 import com.github.benshi.worker.store.MysqlWorkerStore;
 import com.github.benshi.worker.store.WorkerStore;
 import com.lmax.disruptor.RingBuffer;
@@ -36,11 +38,16 @@ public class DisruptorWorker {
     private final Disruptor<WorkerHandlerEvent> disruptor;
     private final RingBuffer<WorkerHandlerEvent> ringBuffer;
     private final WorkerStore workerStore;
+    private final RedissonClient redissonClient;
+    private final int bufferSize;
 
     private final Map<String, WorkHandler> jobHandlers = new HashMap<>();
     private final Map<String, Integer> jobLimits = new ConcurrentHashMap<>();
 
-    public DisruptorWorker(DataSource dataSource, int bufferSize, int coreSize, int maxSize) {
+    public DisruptorWorker(RedissonClient redissonClient,
+            DataSource dataSource, int bufferSize, int coreSize,
+            int maxSize) {
+        this.bufferSize = bufferSize;
         this.executor = new ThreadPoolExecutor(
                 coreSize,
                 maxSize,
@@ -55,12 +62,13 @@ public class DisruptorWorker {
                 new DisruptorWorkerThreadFactory("d-main"));
         this.workProcessors = new HashMap<>();
         this.workerStore = new MysqlWorkerStore(dataSource);
+        this.redissonClient = redissonClient;
 
         // Initialize scheduler for periodic database polling
         this.scheduler = Executors.newSingleThreadScheduledExecutor(
                 new DisruptorWorkerThreadFactory("job-poller"));
 
-        DisruptorHandler handler = new DisruptorHandler(workerStore);
+        DisruptorHandler handler = new DisruptorHandler(workerStore, redissonClient);
         this.disruptor.setDefaultExceptionHandler(handler);
         this.ringBuffer = disruptor.getRingBuffer();
         for (int i = 0; i < coreSize; i++) {
@@ -80,9 +88,16 @@ public class DisruptorWorker {
 
         // Start polling the database
         this.scheduler.scheduleWithFixedDelay(
-                this::pollWorkersFromDatabase,
+                this::pollPendingWorkersFromDatabase,
                 1000, // Initial delay of 1 second
-                DEFAULT_POLL_INTERVAL_MS,
+                5000,
+                TimeUnit.MILLISECONDS);
+
+        // Start polling the datebase for running jobs
+        this.scheduler.scheduleWithFixedDelay(
+                this::pollRunningWorkersFromDatabase,
+                1000, // Initial delay of 1 second
+                1000 * 60 * 5, // Poll every 5 minutes
                 TimeUnit.MILLISECONDS);
         log.info("DisruptorWorker started, polling database every {} ms", DEFAULT_POLL_INTERVAL_MS);
     }
@@ -157,12 +172,27 @@ public class DisruptorWorker {
 
     }
 
+    private void pollRunningWorkersFromDatabase() {
+        try {
+            List<WorkContext> runningJobs = this.workerStore.getWorkersByStatus(WorkerStatus.RUNNING,
+                    this.bufferSize * 2);
+            if (runningJobs.isEmpty()) {
+                return;
+            }
+            for (WorkContext ctx : runningJobs) {
+                
+            }
+        } catch (Exception e) {
+            log.error("Error polling running jobs from database", e);
+        }
+    }
+
     // Method to poll workers from the database and submit to ring buffer
-    private void pollWorkersFromDatabase() {
+    private void pollPendingWorkersFromDatabase() {
         try {
             // Get jobs with PENDING status
             // Fetch up to 100 jobs at a time
-            List<WorkContext> pendingJobs = this.workerStore.getPendingWorkers(100);
+            List<WorkContext> pendingJobs = this.workerStore.getWorkersByStatus(WorkerStatus.PENDING, 100);
             if (pendingJobs.isEmpty()) {
                 return;
             }

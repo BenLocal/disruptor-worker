@@ -12,9 +12,9 @@ public interface WorkerStore {
     boolean saveWorker(WorkContext ctx) throws Exception;
 
     /**
-     * Get a list of pending jobs
+     * Get a list of jobs with the given status
      */
-    List<WorkContext> getPendingWorkers(int limit) throws Exception;
+    List<WorkContext> getWorkersByStatus(WorkerStatus status, int limit) throws Exception;
 
     /**
      * Update the status of a job
