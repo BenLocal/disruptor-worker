@@ -19,8 +19,8 @@ public interface WorkerStore {
     /**
      * Update the status of a job
      */
-    boolean updateWorkerStatus(String jobId, WorkerStatus status,
+    boolean updateWorkerStatus(long id, WorkerStatus status,
             WorkerStatus current, String message) throws Exception;
 
-    WorkContext getWorkerById(String id) throws Exception;
+    WorkContext getWorkerById(long id) throws Exception;
 }

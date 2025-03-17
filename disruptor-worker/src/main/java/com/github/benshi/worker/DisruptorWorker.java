@@ -14,8 +14,11 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
+import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
+import com.github.benshi.worker.cache.LimitsManager;
+import com.github.benshi.worker.cache.LocalLimitsManager;
 import com.github.benshi.worker.store.MysqlWorkerStore;
 import com.github.benshi.worker.store.WorkerStore;
 import com.lmax.disruptor.RingBuffer;
@@ -29,7 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DisruptorWorker {
     // 1 second
-    private static final int DEFAULT_POLL_INTERVAL_MS = 1000;
+    private static final int DEFAULT_POLL_INTERVAL_MS = 3000;
 
     private final ExecutorService executor;
     private final Sequence workSequence;
@@ -39,13 +42,34 @@ public class DisruptorWorker {
     private final RingBuffer<WorkerHandlerEvent> ringBuffer;
     private final WorkerStore workerStore;
     private final RedissonClient redissonClient;
+    private final LimitsManager limitsManager;
     private final int bufferSize;
 
     private final Map<String, WorkHandler> jobHandlers = new HashMap<>();
     private final Map<String, Integer> jobLimits = new ConcurrentHashMap<>();
 
+    // Get available CPU cores
+    private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
+
     public DisruptorWorker(RedissonClient redissonClient,
-            DataSource dataSource, int bufferSize, int coreSize,
+            DataSource dataSource) {
+        // Limit to 4 threads
+        this(redissonClient, dataSource, 1024);
+    }
+
+    public DisruptorWorker(RedissonClient redissonClient,
+            DataSource dataSource, int bufferSize) {
+        // Limit to 4 threads
+        this(redissonClient, dataSource,
+                bufferSize,
+                Math.min(AVAILABLE_PROCESSORS, 4),
+                Math.min(AVAILABLE_PROCESSORS * 2, 8));
+    }
+
+    public DisruptorWorker(RedissonClient redissonClient,
+            DataSource dataSource,
+            int bufferSize,
+            int coreSize,
             int maxSize) {
         this.bufferSize = bufferSize;
         this.executor = new ThreadPoolExecutor(
@@ -63,12 +87,14 @@ public class DisruptorWorker {
         this.workProcessors = new HashMap<>();
         this.workerStore = new MysqlWorkerStore(dataSource);
         this.redissonClient = redissonClient;
+        this.limitsManager = new LocalLimitsManager();
 
         // Initialize scheduler for periodic database polling
         this.scheduler = Executors.newSingleThreadScheduledExecutor(
                 new DisruptorWorkerThreadFactory("job-poller"));
 
-        DisruptorHandler handler = new DisruptorHandler(workerStore, redissonClient);
+        DisruptorHandler handler = new DisruptorHandler(this.workerStore,
+                this.redissonClient, this.limitsManager);
         this.disruptor.setDefaultExceptionHandler(handler);
         this.ringBuffer = disruptor.getRingBuffer();
         for (int i = 0; i < coreSize; i++) {
@@ -87,19 +113,22 @@ public class DisruptorWorker {
         this.disruptor.start();
 
         // Start polling the database
+        // Initial delay of 1 second
         this.scheduler.scheduleWithFixedDelay(
                 this::pollPendingWorkersFromDatabase,
-                1000, // Initial delay of 1 second
-                5000,
-                TimeUnit.MILLISECONDS);
-
-        // Start polling the datebase for running jobs
-        this.scheduler.scheduleWithFixedDelay(
-                this::pollRunningWorkersFromDatabase,
-                1000, // Initial delay of 1 second
-                1000 * 60 * 5, // Poll every 5 minutes
+                1000,
+                DEFAULT_POLL_INTERVAL_MS,
                 TimeUnit.MILLISECONDS);
         log.info("DisruptorWorker started, polling database every {} ms", DEFAULT_POLL_INTERVAL_MS);
+
+        // Start polling the datebase for running jobs
+        // Initial delay of 1 second
+        // Poll every 5 minutes
+        this.scheduler.scheduleWithFixedDelay(
+                this::pollRunningWorkersFromDatabase,
+                1000,
+                1000 * 60 * 5,
+                TimeUnit.MILLISECONDS);
     }
 
     public void shutdown() {
@@ -148,7 +177,16 @@ public class DisruptorWorker {
         jobLimits.put(handlerId, limit);
     }
 
-    public boolean submit(WorkContext ctx) {
+    public boolean submit(String workId, String handerId, String payload) {
+        WorkContext ctx = new WorkContext()
+                .setWorkId(workId)
+                .setHandlerId(handerId)
+                .setPayload(payload);
+
+        return submit(ctx);
+    }
+
+    private boolean submit(WorkContext ctx) {
         if (ctx == null || ctx.getHandlerId() == null) {
             return false;
         }
@@ -180,7 +218,20 @@ public class DisruptorWorker {
                 return;
             }
             for (WorkContext ctx : runningJobs) {
-                
+                RLock lock = redissonClient.getLock(ctx.lockKey());
+                if (lock.isLocked() && !lock.isHeldByCurrentThread()) {
+                    // Job is still running, skip
+                    continue;
+                }
+
+                // update job status to PANDING
+                log.info("Job {} is marked as RUNNING but has no active lock, resetting to PENDING", ctx.getId());
+                ctx.setCurrentStatus(WorkerStatus.PENDING);
+                workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.PENDING,
+                        ctx.getCurrentStatus(),
+                        "Reset due to no active lock");
+                log.info("Job {} reset to PENDING", ctx.getId());
+
             }
         } catch (Exception e) {
             log.error("Error polling running jobs from database", e);
@@ -207,13 +258,18 @@ public class DisruptorWorker {
                 // Check handler limit
                 Integer limit = jobLimits.get(ctx.getHandlerId());
                 if (limit != null && limit > 0) {
-                    // TODO check local cache running count for this handler
+                    long currentCount = limitsManager.getCount(ctx.getHandlerId());
+                    if (currentCount >= limit) {
+                        log.warn("Job limit reached for handler {}: {} >= {}", ctx.getHandlerId(), currentCount, limit);
+                        continue;
+                    }
                 }
 
                 // Check ring buffer capacity
                 if (ringBuffer.remainingCapacity() <= 1) {
                     log.warn("Ring buffer capacity too low: {}", ringBuffer.remainingCapacity());
-                    break; // Stop processing more jobs
+                    // Stop processing more jobs
+                    break;
                 }
 
                 // Add to ring buffer for processing

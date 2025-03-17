@@ -21,15 +21,19 @@ public class MysqlWorkerStore implements WorkerStore {
     @Override
     public boolean saveWorker(WorkContext ctx) throws Exception {
         // Generate job ID if not provided
-        if (ctx.getId() == null || ctx.getId().isEmpty()) {
-            ctx.setId(UUID.randomUUID().toString());
+        if (ctx.getWorkId() == null || ctx.getWorkId().isEmpty()) {
+            ctx.setWorkId(UUID.randomUUID().toString());
+        }
+
+        if (ctx.getHandlerId() == null || ctx.getHandlerId().isEmpty()) {
+            throw new IllegalArgumentException("Handler ID is required");
         }
 
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
                         "INSERT INTO worker_jobs (work_id, handler_id, payload, status, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())")) {
 
-            stmt.setString(1, ctx.getId());
+            stmt.setString(1, ctx.getWorkId());
             stmt.setString(2, ctx.getHandlerId());
             stmt.setString(3, ctx.getPayload());
             stmt.setString(4, WorkerStatus.PENDING.name());
@@ -45,10 +49,10 @@ public class MysqlWorkerStore implements WorkerStore {
 
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT work_id, handler_id, payload, retry_count, status " +
+                        "SELECT id, work_id, handler_id, payload, retry_count, status " +
                                 "FROM worker_jobs " +
                                 "WHERE status = ? " +
-                                "ORDER BY priority DESC, created_at ASC " +
+                                "ORDER BY priority DESC, updated_at ASC " +
                                 "LIMIT ?")) {
 
             stmt.setString(1, status.name());
@@ -57,7 +61,8 @@ public class MysqlWorkerStore implements WorkerStore {
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     WorkContext ctx = new WorkContext();
-                    ctx.setId(rs.getString("work_id"));
+                    ctx.setId(rs.getLong("id"));
+                    ctx.setWorkId(rs.getString("work_id"));
                     ctx.setHandlerId(rs.getString("handler_id"));
                     ctx.setPayload(rs.getString("payload"));
                     ctx.setCurrentStatus(WorkerStatus.valueOf(rs.getString("status")));
@@ -71,17 +76,17 @@ public class MysqlWorkerStore implements WorkerStore {
     }
 
     @Override
-    public boolean updateWorkerStatus(String jobId, WorkerStatus status, WorkerStatus current, String message)
+    public boolean updateWorkerStatus(long id, WorkerStatus status, WorkerStatus current, String message)
             throws Exception {
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
                         "UPDATE worker_jobs " +
                                 "SET status = ?, updated_at = NOW(), message = ? " +
-                                "WHERE work_id = ? AND status = ?")) {
+                                "WHERE id = ? AND status = ?")) {
 
             stmt.setString(1, status.name());
             stmt.setString(2, message);
-            stmt.setString(3, jobId);
+            stmt.setLong(3, id);
 
             stmt.setString(4, current.name());
 
@@ -91,20 +96,21 @@ public class MysqlWorkerStore implements WorkerStore {
     }
 
     @Override
-    public WorkContext getWorkerById(String id) throws Exception {
+    public WorkContext getWorkerById(long id) throws Exception {
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT work_id, handler_id, payload, retry_count, status " +
+                        "SELECT id, work_id, handler_id, payload, retry_count, status " +
                                 "FROM worker_jobs " +
                                 "WHERE work_id = ? ")) {
 
-            stmt.setString(1, id);
+            stmt.setLong(1, id);
 
             WorkContext ctx = new WorkContext();
             try (ResultSet rs = stmt.executeQuery()) {
 
                 if (rs.next()) {
-                    ctx.setId(rs.getString("work_id"));
+                    ctx.setId(rs.getLong("id"));
+                    ctx.setWorkId(rs.getString("work_id"));
                     ctx.setHandlerId(rs.getString("handler_id"));
                     ctx.setPayload(rs.getString("payload"));
                     ctx.setCurrentStatus(WorkerStatus.valueOf(rs.getString("status")));

@@ -10,17 +10,13 @@ public class DisruptorWorkerTest {
         DataSourceManager dataSourceManager = DataSourceManager.getInstance();
         RedisManager redisManager = RedisManager.getInstance();
         DisruptorWorker worker = new DisruptorWorker(redisManager.getClient(),
-                dataSourceManager.getDataSource(), 1024,
-                4, 8);
+                dataSourceManager.getDataSource());
         worker.start();
 
         worker.register("TestWorkHandler", new TestWorkHandler(), 2);
 
         for (int i = 0; i < 100; i++) {
-            worker.submit(new WorkContext()
-                    .setId("TestWorkHandler")
-                    .setHandlerId("TestWorkHandler")
-                    .setPayload("hello world " + i));
+            worker.submit("TestWorkHandler" + i, "TestWorkHandler", "hello world " + i);
         }
 
         Thread.sleep(5000);
