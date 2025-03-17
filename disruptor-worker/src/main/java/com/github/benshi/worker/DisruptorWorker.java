@@ -1,6 +1,8 @@
 package com.github.benshi.worker;
 
 import java.sql.SQLIntegrityConstraintViolationException;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +46,7 @@ public class DisruptorWorker {
     private final RedissonClient redissonClient;
     private final LimitsManager limitsManager;
     private final int bufferSize;
+    private final int stayDays;
 
     private final Map<String, WorkHandler> jobHandlers = new HashMap<>();
     private final Map<String, Integer> jobLimits = new ConcurrentHashMap<>();
@@ -54,23 +57,31 @@ public class DisruptorWorker {
     public DisruptorWorker(RedissonClient redissonClient,
             DataSource dataSource) {
         // Limit to 4 threads
-        this(redissonClient, dataSource, 1024);
+        this(redissonClient, dataSource, 1024, 7);
     }
 
     public DisruptorWorker(RedissonClient redissonClient,
-            DataSource dataSource, int bufferSize) {
+            DataSource dataSource, int stayDays) {
+        // Limit to 4 threads
+        this(redissonClient, dataSource, 1024, stayDays);
+    }
+
+    public DisruptorWorker(RedissonClient redissonClient,
+            DataSource dataSource, int bufferSize, int stayDays) {
         // Limit to 4 threads
         this(redissonClient, dataSource,
                 bufferSize,
                 Math.min(AVAILABLE_PROCESSORS, 4),
-                Math.min(AVAILABLE_PROCESSORS * 2, 8));
+                Math.min(AVAILABLE_PROCESSORS * 2, 8),
+                stayDays);
     }
 
     public DisruptorWorker(RedissonClient redissonClient,
             DataSource dataSource,
             int bufferSize,
             int coreSize,
-            int maxSize) {
+            int maxSize,
+            int stayDays) {
         this.bufferSize = bufferSize;
         this.executor = new ThreadPoolExecutor(
                 coreSize,
@@ -88,6 +99,7 @@ public class DisruptorWorker {
         this.workerStore = new MysqlWorkerStore(dataSource);
         this.redissonClient = redissonClient;
         this.limitsManager = new LocalLimitsManager();
+        this.stayDays = stayDays;
 
         // Initialize scheduler for periodic database polling
         this.scheduler = Executors.newSingleThreadScheduledExecutor(
@@ -128,6 +140,15 @@ public class DisruptorWorker {
                 this::pollRunningWorkersFromDatabase,
                 1000,
                 1000 * 60 * 5,
+                TimeUnit.MILLISECONDS);
+
+        // Clear jobs with all statuses except RUNNING
+        // Initial delay of 1 second
+        // Poll every 1 day
+        this.scheduler.scheduleWithFixedDelay(
+                this::clearJobs,
+                1000,
+                1000 * 60 * 60 * 24,
                 TimeUnit.MILLISECONDS);
     }
 
@@ -178,30 +199,59 @@ public class DisruptorWorker {
     }
 
     public boolean submit(String workId, String handerId, String payload) {
+        return submit(workId, handerId, payload, false);
+    }
+
+    public boolean submit(String workId, String handerId, String payload, boolean force) {
         WorkContext ctx = new WorkContext()
                 .setWorkId(workId)
                 .setHandlerId(handerId)
                 .setPayload(payload);
 
-        return submit(ctx);
+        return submit(ctx, force);
     }
 
-    private boolean submit(WorkContext ctx) {
+    private boolean submit(WorkContext ctx, boolean force) {
         if (ctx == null || ctx.getHandlerId() == null) {
             return false;
         }
 
         try {
             ctx.setCurrentStatus(WorkerStatus.PENDING);
+            if (force) {
+                WorkContext db = workerStore.getWorkerByWorkId(ctx.getWorkId(), ctx.getHandlerId());
+                if (db != null && db.getCurrentStatus() != WorkerStatus.RUNNING) {
+                    RLock lock = redissonClient.getLock(ctx.lockKey());
+                    if (lock.tryLock(10, 10, TimeUnit.SECONDS)) {
+                        try {
+                            // Update job status to PENDING
+                            log.info("Job {}<<<{}>>> is marked as RUNNING but has no active lock, resetting to PENDING",
+                                    db.getId(), db.bidDisplay());
+                            workerStore.updateWorkerStatus(db.getId(),
+                                    WorkerStatus.PENDING,
+                                    db.getCurrentStatus(),
+                                    "Reset due to no active lock");
+                            log.info("Job {}<<<{}>>> reset to PENDING", db.getId(), db.bidDisplay());
+                        } finally {
+                            lock.unlock();
+                        }
+                        return true;
+                    }
+                }
+            }
+
             if (!workerStore.saveWorker(ctx)) {
-                log.error("Error saving job to database: {}", ctx.getId());
+                log.error("Error saving job to database: {}", ctx.bidDisplay());
                 return false;
             }
-        } catch (Exception e) {
+        } catch (
+
+        Exception e) {
             if (e instanceof SQLIntegrityConstraintViolationException) {
-                log.warn("Job {} already exists in database", ctx.getId());
+
+                log.warn("Job {} already exists in database", ctx.bidDisplay());
             } else {
-                log.error("Error saving job to database: {}", ctx.getId(), e);
+                log.error("Error saving job to database: {}", ctx.bidDisplay(), e);
             }
             return false;
         }
@@ -251,7 +301,7 @@ public class DisruptorWorker {
             for (WorkContext ctx : pendingJobs) {
                 WorkHandler handler = jobHandlers.get(ctx.getHandlerId());
                 if (handler == null) {
-                    log.warn("No handler found for job {}, handlerId: {}", ctx.getId(), ctx.getHandlerId());
+                    log.debug("No handler found for job {}, handlerId: {}", ctx.getId(), ctx.getHandlerId());
                     continue;
                 }
 
@@ -260,7 +310,8 @@ public class DisruptorWorker {
                 if (limit != null && limit > 0) {
                     long currentCount = limitsManager.getCount(ctx.getHandlerId());
                     if (currentCount >= limit) {
-                        log.warn("Job limit reached for handler {}: {} >= {}", ctx.getHandlerId(), currentCount, limit);
+                        log.debug("Job limit reached for handler {}: {} >= {}", ctx.getHandlerId(), currentCount,
+                                limit);
                         continue;
                     }
                 }
@@ -285,6 +336,24 @@ public class DisruptorWorker {
             }
         } catch (Exception e) {
             log.error("Error polling jobs from database", e);
+        }
+    }
+
+    public void clearJobs() {
+        try {
+            // Calculate the date N days ago
+            Calendar calendar = Calendar.getInstance();
+            calendar.add(Calendar.DATE, -stayDays);
+            Date cutoffDate = calendar.getTime();
+
+            log.info("Clearing jobs older than {} days (before {})", stayDays, cutoffDate);
+
+            // Delete all jobs except RUNNING ones that are older than the cutoff date
+            int deletedCount = workerStore.deleteJobsOlderThan(cutoffDate, WorkerStatus.RUNNING);
+
+            log.info("Deleted {} old jobs from the database", deletedCount);
+        } catch (Exception e) {
+            log.error("Error clearing jobs from database", e);
         }
     }
 }

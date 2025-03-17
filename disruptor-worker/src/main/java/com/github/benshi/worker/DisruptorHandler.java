@@ -44,7 +44,7 @@ public class DisruptorHandler implements WorkHandler<WorkerHandlerEvent>, Except
                             ctx.getWorkId(), ctx.getPayload()));
 
                     // Update job as completed in database
-                    workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.COMPLETED, ctx.getCurrentStatus(), null);
+                    workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.COMPLETED, WorkerStatus.RUNNING, null);
                     log.info("Job {} completed successfully", ctx.getId());
                 } finally {
                     lock.unlock();

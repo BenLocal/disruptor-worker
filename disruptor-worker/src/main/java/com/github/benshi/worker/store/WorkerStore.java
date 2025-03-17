@@ -1,5 +1,6 @@
 package com.github.benshi.worker.store;
 
+import java.util.Date;
 import java.util.List;
 
 import com.github.benshi.worker.WorkContext;
@@ -23,4 +24,8 @@ public interface WorkerStore {
             WorkerStatus current, String message) throws Exception;
 
     WorkContext getWorkerById(long id) throws Exception;
+
+    int deleteJobsOlderThan(Date cutoffDate, WorkerStatus excludeStatus) throws Exception;
+
+    WorkContext getWorkerByWorkId(String workId, String handlerId) throws Exception;
 }

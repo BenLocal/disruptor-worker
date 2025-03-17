@@ -24,4 +24,8 @@ public class WorkContext {
     public String lockKey() {
         return String.format("%s-%s-%s", BASE_WORKER_KEY, this.handlerId, this.workId);
     }
+
+    public String bidDisplay() {
+        return String.format("%s(%s)", this.handlerId, this.workId);
+    }
 }

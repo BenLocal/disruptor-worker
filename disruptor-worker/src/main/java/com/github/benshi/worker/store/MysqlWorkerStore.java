@@ -3,7 +3,9 @@ package com.github.benshi.worker.store;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,8 +15,10 @@ import com.github.benshi.worker.WorkContext;
 import com.github.benshi.worker.WorkerStatus;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
+@Slf4j
 public class MysqlWorkerStore implements WorkerStore {
     private final DataSource dataSource;
 
@@ -123,6 +127,54 @@ public class MysqlWorkerStore implements WorkerStore {
             return ctx;
         }
 
+    }
+
+    @Override
+    public int deleteJobsOlderThan(Date cutoffDate, WorkerStatus excludeStatus) throws Exception {
+        String sql = "DELETE FROM worker_jobs WHERE updated_at < ? AND status != ?";
+
+        try (Connection conn = dataSource.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setTimestamp(1, new java.sql.Timestamp(cutoffDate.getTime()));
+            ps.setString(2, excludeStatus.name());
+
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            log.error("Error deleting jobs", e);
+            return 0;
+        }
+    }
+
+    @Override
+    public WorkContext getWorkerByWorkId(String workId, String handlerId) throws Exception {
+
+        try (Connection conn = dataSource.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT id, work_id, handler_id, payload, retry_count, status " +
+                                "FROM worker_jobs " +
+                                "WHERE work_id = ? AND handler_id = ? ")) {
+
+            stmt.setString(1, workId);
+            stmt.setString(2, handlerId);
+
+            WorkContext ctx = new WorkContext();
+            try (ResultSet rs = stmt.executeQuery()) {
+
+                if (rs.next()) {
+                    ctx.setId(rs.getLong("id"));
+                    ctx.setWorkId(rs.getString("work_id"));
+                    ctx.setHandlerId(rs.getString("handler_id"));
+                    ctx.setPayload(rs.getString("payload"));
+                    ctx.setCurrentStatus(WorkerStatus.valueOf(rs.getString("status")));
+                    ctx.setCurrentRetryCount(rs.getInt("retry_count"));
+                } else {
+                    return null;
+                }
+            }
+
+            return ctx;
+        }
     }
 
 }

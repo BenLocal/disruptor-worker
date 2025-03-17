@@ -11,4 +11,8 @@ public class WorkHandlerResult {
     public static WorkHandlerResult success() {
         return new WorkHandlerResult(true);
     }
+
+    public static WorkHandlerResult failure() {
+        return new WorkHandlerResult(false);
+    }
 }
