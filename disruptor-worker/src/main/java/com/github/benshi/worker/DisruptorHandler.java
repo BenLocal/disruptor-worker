@@ -33,7 +33,8 @@ public class DisruptorHandler implements WorkHandler<WorkerHandlerEvent>, Except
                 try {
                     limitsManager.incrementCount(ctx.getHandlerId());
                     // set worker status to running
-                    log.info("Processing job {} with handler {}", ctx.getId(), ctx.getHandlerId());
+                    log.info("Processing job {} for workId {} with handler {}", ctx.getId(), ctx.getWorkId(),
+                            ctx.getHandlerId());
                     if (!workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.RUNNING, ctx.getCurrentStatus(),
                             null)) {
                         log.warn("Job {} already running", ctx.getId());
