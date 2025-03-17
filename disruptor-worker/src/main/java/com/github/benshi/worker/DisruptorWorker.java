@@ -71,8 +71,8 @@ public class DisruptorWorker {
         // Limit to 4 threads
         this(redissonClient, dataSource,
                 bufferSize,
-                Math.min(AVAILABLE_PROCESSORS, 4),
-                Math.min(AVAILABLE_PROCESSORS * 2, 8),
+                Math.max(AVAILABLE_PROCESSORS, 4),
+                Math.max(AVAILABLE_PROCESSORS * 2, 8),
                 stayDays);
     }
 
