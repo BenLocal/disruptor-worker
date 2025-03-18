@@ -11,17 +11,17 @@ public class WorkerPublisher {
     }
 
     public void publish(Class<? extends WorkHandler> clazz, String workerId, String payload) {
-        if (worker == null) {
-            return;
-        }
-        worker.submit(workerId, clazz.getName(), payload);
+        publish(workerId, clazz.getName(), payload, false);
     }
 
     public void publish(Class<? extends WorkHandler> clazz, String workerId, String payload, boolean froce) {
+        publish(workerId, clazz.getName(), payload, froce);
+    }
+
+    public void publish(String handlerId, String workerId, String payload, boolean froce) {
         if (worker == null) {
             return;
         }
-        worker.submit(workerId, clazz.getName(), payload, froce);
-
+        worker.submit(workerId, handlerId, payload, froce);
     }
 }

@@ -18,6 +18,8 @@ public class WorkContext {
     private WorkerStatus currentStatus;
     // next status
     private int currentRetryCount;
+    // 强制运行
+    private boolean force;
 
     private final static String BASE_WORKER_KEY = "worker-lock-";
 

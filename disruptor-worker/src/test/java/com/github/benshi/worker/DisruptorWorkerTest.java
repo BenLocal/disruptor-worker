@@ -16,7 +16,7 @@ public class DisruptorWorkerTest {
         worker.register("TestWorkHandler", new TestWorkHandler(), 2);
 
         for (int i = 0; i < 100; i++) {
-            worker.submit("TestWorkHandler" + i, "TestWorkHandler", "hello world " + i);
+            worker.submit("TestWorkHandler" + i, "TestWorkHandler", "hello world " + i, false);
         }
 
         Thread.sleep(5000);

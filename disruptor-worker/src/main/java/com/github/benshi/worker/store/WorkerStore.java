@@ -28,4 +28,8 @@ public interface WorkerStore {
     int deleteJobsOlderThan(Date cutoffDate, WorkerStatus excludeStatus) throws Exception;
 
     WorkContext getWorkerByWorkId(String workId, String handlerId) throws Exception;
+
+    List<WorkContext> list(int offset, int limit, String filter) throws Exception;
+
+    long count(String filter) throws Exception;
 }

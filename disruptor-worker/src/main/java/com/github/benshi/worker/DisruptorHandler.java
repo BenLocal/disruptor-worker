@@ -22,44 +22,49 @@ public class DisruptorHandler implements WorkHandler<WorkerHandlerEvent>, Except
 
     @Override
     public void onEvent(WorkerHandlerEvent event) throws Exception {
-        if (event.getCtx() == null || event.getHandler() == null) {
-            return;
-        }
-        WorkContext ctx = event.getCtx();
-
-        RLock lock = redissonClient.getLock(ctx.lockKey());
         try {
-            if (lock.tryLock(10, 10, TimeUnit.SECONDS)) {
-                try {
-                    limitsManager.incrementCount(ctx.getHandlerId());
-                    // set worker status to running
-                    log.info("Processing job {} for workId {} with handler {}", ctx.getId(), ctx.getWorkId(),
-                            ctx.getHandlerId());
-                    if (!workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.RUNNING, ctx.getCurrentStatus(),
-                            null)) {
-                        log.warn("Job {} already running", ctx.getId());
-                        return;
-                    }
+            if (event.getCtx() == null || event.getHandler() == null) {
+                return;
+            }
 
-                    event.getHandler().run(new WorkHandlerMessage(ctx.getId(),
-                            ctx.getWorkId(), ctx.getPayload()));
-
-                    // Update job as completed in database
-                    workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.COMPLETED, WorkerStatus.RUNNING, null);
-                    log.info("Job {} completed successfully", ctx.getId());
-                } finally {
-                    lock.unlock();
-                    // Decrement the count when job is finished (whether success or failure)
+            WorkContext ctx = event.getCtx();
+            try {
+                RLock lock = redissonClient.getLock(ctx.lockKey());
+                if (lock.tryLock(10, 30, TimeUnit.SECONDS)) {
                     try {
-                        limitsManager.decrementCount(ctx.getHandlerId());
-                    } catch (Exception e) {
-                        // ignore
+                        // set worker status to running
+                        log.info("Processing job {} for workId {} with handler {}", ctx.getId(), ctx.getWorkId(),
+                                ctx.getHandlerId());
+                        if (!workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.RUNNING, ctx.getCurrentStatus(),
+                                null)) {
+                            log.warn("Job {} already running", ctx.getId());
+                            return;
+                        }
+
+                        event.getHandler().run(new WorkHandlerMessage(ctx.getId(),
+                                ctx.getWorkId(), ctx.getPayload()));
+
+                        // Update job as completed in database
+                        workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.COMPLETED, WorkerStatus.RUNNING, null);
+                        log.info("Job {} completed successfully", ctx.getId());
+                    } finally {
+                        lock.unlock();
                     }
                 }
+            } catch (Exception e) {
+                log.error("Error processing job {}", ctx.getId(), e);
+                workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.FAILED, ctx.getCurrentStatus(),
+                        e.getMessage());
             }
-        } catch (Exception e) {
-            log.error("Error processing job {}", ctx.getId(), e);
-            workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.FAILED, ctx.getCurrentStatus(), e.getMessage());
+        } finally {
+            if (event != null && event.getCtx() != null && event.getCtx().getHandlerId() != null) {
+                // Decrement the count when job is finished (whether success or failure)
+                try {
+                    limitsManager.decrementCount(event.getCtx().getHandlerId());
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
         }
     }
 
@@ -67,7 +72,6 @@ public class DisruptorHandler implements WorkHandler<WorkerHandlerEvent>, Except
     public void handleEventException(Throwable ex, long sequence, WorkerHandlerEvent event) {
         log.error("Exception during processing event", ex);
         if (event != null && event.getCtx() != null) {
-
             try {
                 WorkContext ctx = event.getCtx();
                 workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.FAILED_PERMANENT,

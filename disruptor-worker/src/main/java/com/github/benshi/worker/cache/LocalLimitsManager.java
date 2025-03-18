@@ -1,23 +1,55 @@
 package com.github.benshi.worker.cache;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LocalLimitsManager implements LimitsManager {
-    private static final ConcurrentHashMap<String, Long> handlerCount = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, AtomicInteger> handlerCount = new ConcurrentHashMap<>();
 
     @Override
     public long incrementCount(String handlerId) {
-        return handlerCount.compute(handlerId, (k, v) -> v == null ? 1 : v + 1);
+        if (handlerId == null) {
+            return -1;
+        }
+
+        return handlerCount.compute(handlerId, (k, v) -> {
+            if (v == null) {
+                return new AtomicInteger(1);
+            } else {
+                v.incrementAndGet();
+                return v;
+            }
+        }).get();
     }
 
     @Override
     public long decrementCount(String handlerId) {
-        return handlerCount.compute(handlerId, (k, v) -> v == null ? 0 : v - 1);
+        if (handlerId == null) {
+            return -1;
+        }
+
+        return handlerCount.compute(handlerId, (k, v) -> {
+            if (v == null) {
+                return new AtomicInteger(0);
+            } else {
+                v.decrementAndGet();
+                return v;
+            }
+        }).get();
     }
 
     @Override
     public long getCount(String handlerId) {
-        return handlerCount.getOrDefault(handlerId, 0L);
+        if (handlerId == null) {
+            return -1;
+        }
+
+        AtomicInteger v = handlerCount.get(handlerId);
+        if (v == null) {
+            return 0;
+        }
+
+        return v.get();
     }
 
 }

@@ -198,31 +198,28 @@ public class DisruptorWorker {
         jobLimits.put(handlerId, limit);
     }
 
-    public boolean submit(String workId, String handerId, String payload) {
-        return submit(workId, handerId, payload, false);
-    }
-
     public boolean submit(String workId, String handerId, String payload, boolean force) {
         WorkContext ctx = new WorkContext()
                 .setWorkId(workId)
                 .setHandlerId(handerId)
-                .setPayload(payload);
+                .setPayload(payload)
+                .setForce(force);
 
-        return submit(ctx, force);
+        return submit(ctx);
     }
 
-    private boolean submit(WorkContext ctx, boolean force) {
+    private boolean submit(WorkContext ctx) {
         if (ctx == null || ctx.getHandlerId() == null) {
             return false;
         }
 
         try {
             ctx.setCurrentStatus(WorkerStatus.PENDING);
-            if (force) {
+            if (ctx.isForce()) {
                 WorkContext db = workerStore.getWorkerByWorkId(ctx.getWorkId(), ctx.getHandlerId());
                 if (db != null && db.getCurrentStatus() != WorkerStatus.RUNNING) {
                     RLock lock = redissonClient.getLock(ctx.lockKey());
-                    if (lock.tryLock(10, 10, TimeUnit.SECONDS)) {
+                    if (lock.tryLock(10, 30, TimeUnit.SECONDS)) {
                         try {
                             // Update job status to PENDING
                             log.info("Job {}<<<{}>>> is marked as RUNNING but has no active lock, resetting to PENDING",
@@ -244,11 +241,8 @@ public class DisruptorWorker {
                 log.error("Error saving job to database: {}", ctx.bidDisplay());
                 return false;
             }
-        } catch (
-
-        Exception e) {
+        } catch (Exception e) {
             if (e instanceof SQLIntegrityConstraintViolationException) {
-
                 log.warn("Job {} already exists in database", ctx.bidDisplay());
             } else {
                 log.error("Error saving job to database: {}", ctx.bidDisplay(), e);
@@ -305,6 +299,13 @@ public class DisruptorWorker {
                     continue;
                 }
 
+                // Check ring buffer capacity
+                if (ringBuffer.remainingCapacity() <= 1) {
+                    log.warn("Ring buffer capacity too low: {}", ringBuffer.remainingCapacity());
+                    // Stop processing more jobs
+                    break;
+                }
+
                 // Check handler limit
                 Integer limit = jobLimits.get(ctx.getHandlerId());
                 if (limit != null && limit > 0) {
@@ -316,16 +317,12 @@ public class DisruptorWorker {
                     }
                 }
 
-                // Check ring buffer capacity
-                if (ringBuffer.remainingCapacity() <= 1) {
-                    log.warn("Ring buffer capacity too low: {}", ringBuffer.remainingCapacity());
-                    // Stop processing more jobs
-                    break;
-                }
-
                 // Add to ring buffer for processing
                 long sequence = ringBuffer.next();
                 try {
+                    // Increment the count
+                    limitsManager.incrementCount(ctx.getHandlerId());
+
                     WorkerHandlerEvent event = ringBuffer.get(sequence);
                     event.setCtx(ctx);
                     event.setHandler(handler);
@@ -355,5 +352,9 @@ public class DisruptorWorker {
         } catch (Exception e) {
             log.error("Error clearing jobs from database", e);
         }
+    }
+
+    public WorkerStore getWorkerStore() {
+        return this.workerStore;
     }
 }

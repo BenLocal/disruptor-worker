@@ -177,4 +177,60 @@ public class MysqlWorkerStore implements WorkerStore {
         }
     }
 
+    @Override
+    public List<WorkContext> list(int offset, int limit, String filter) throws Exception {
+        List<WorkContext> jobs = new ArrayList<>();
+        if (filter == null) {
+            filter = "";
+        }
+        try (Connection conn = dataSource.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT id, work_id, handler_id, payload, retry_count, status " +
+                                "FROM worker_jobs " +
+                                "WHERE work_id LIKE ? " +
+                                "ORDER BY priority DESC, updated_at ASC " +
+                                "LIMIT ? OFFSET ?")) {
+
+            stmt.setString(1, String.format("%%%s%%", filter));
+            stmt.setInt(2, limit);
+            stmt.setInt(3, offset);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    WorkContext ctx = new WorkContext();
+                    ctx.setId(rs.getLong("id"));
+                    ctx.setWorkId(rs.getString("work_id"));
+                    ctx.setHandlerId(rs.getString("handler_id"));
+                    ctx.setPayload(rs.getString("payload"));
+                    ctx.setCurrentStatus(WorkerStatus.valueOf(rs.getString("status")));
+                    ctx.setCurrentRetryCount(rs.getInt("retry_count"));
+                    jobs.add(ctx);
+                }
+            }
+        }
+
+        return jobs;
+    }
+
+    @Override
+    public long count(String filter) throws Exception {
+        if (filter == null) {
+            filter = "";
+        }
+        try (Connection conn = dataSource.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT COUNT(*) FROM worker_jobs WHERE work_id LIKE ?")) {
+
+            stmt.setString(1, String.format("%%%s%%", filter));
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong(1);
+                }
+            }
+        }
+
+        return 0;
+    }
+
 }

@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-@Worker(limit = 10)
+@Worker(limit = 2)
 public class TaskWorker implements WorkHandler {
     private final WorkerPublisher workerPublisher;
 
@@ -23,7 +23,7 @@ public class TaskWorker implements WorkHandler {
     public WorkHandlerResult run(WorkHandlerMessage msg) {
         try {
             System.out.println("TaskWorker: " + msg);
-            Thread.sleep(1000); // simulate work
+            Thread.sleep(20000); // simulate work
             System.out.println("TaskWorker: " + msg + " done");
             return WorkHandlerResult.success();
         } catch (Exception e) {

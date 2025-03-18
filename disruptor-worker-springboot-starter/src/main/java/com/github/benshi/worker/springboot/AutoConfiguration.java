@@ -6,6 +6,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -16,6 +17,7 @@ import com.github.benshi.worker.DisruptorWorker;
 @EnableConfigurationProperties({ WorkerProperties.class,
         DataSourceProperties.class })
 @Import({ CustomRedissonAutoConfiguration.class })
+@ComponentScan(basePackages = "com.github.benshi.worker.springboot")
 public class AutoConfiguration {
 
     @Bean
