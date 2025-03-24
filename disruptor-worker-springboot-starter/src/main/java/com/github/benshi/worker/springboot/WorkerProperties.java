@@ -10,4 +10,6 @@ public class WorkerProperties {
     private int bufferSize = 1024;
 
     private int stayDays = 7;
+
+    private String storeDirver = "mysql-jdbc";
 }

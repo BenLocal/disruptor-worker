@@ -10,7 +10,7 @@ public class DisruptorWorkerTest {
         DataSourceManager dataSourceManager = DataSourceManager.getInstance();
         RedisManager redisManager = RedisManager.getInstance();
         DisruptorWorker worker = new DisruptorWorker(redisManager.getClient(),
-                dataSourceManager.getDataSource());
+                dataSourceManager.getDataSource(), "mysql-jdbc");
         worker.start();
 
         worker.register("TestWorkHandler", new TestWorkHandler(), 2);

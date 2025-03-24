@@ -40,6 +40,7 @@ public class AutoConfiguration {
         return new DisruptorWorker(
                 redissonClient,
                 dateSource,
+                workerProperties.getStoreDirver(),
                 bufferSize,
                 stayDays);
     }

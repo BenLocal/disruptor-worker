@@ -11,6 +11,7 @@
 
     <modules>
         <module>disruptor-worker-core</module>
+        <module>disruptor-worker-store</module>
         <module>disruptor-worker</module>
         <module>disruptor-worker-springboot-starter</module>
         <module>disruptor-worker-example</module>

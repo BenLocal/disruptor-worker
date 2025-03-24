@@ -21,8 +21,8 @@ import org.redisson.api.RedissonClient;
 
 import com.github.benshi.worker.cache.LimitsManager;
 import com.github.benshi.worker.cache.LocalLimitsManager;
-import com.github.benshi.worker.store.MysqlWorkerStore;
 import com.github.benshi.worker.store.WorkerStore;
+import com.github.benshi.worker.store.WorkerStoreProcessor;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.Sequence;
 import com.lmax.disruptor.Sequencer;
@@ -55,21 +55,29 @@ public class DisruptorWorker {
     private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
 
     public DisruptorWorker(RedissonClient redissonClient,
-            DataSource dataSource) {
+            DataSource dataSource,
+            String storeName) {
         // Limit to 4 threads
-        this(redissonClient, dataSource, 1024, 7);
+        this(redissonClient, dataSource, storeName, 1024, 7);
     }
 
     public DisruptorWorker(RedissonClient redissonClient,
-            DataSource dataSource, int stayDays) {
+            DataSource dataSource,
+            String storeName,
+            int stayDays) {
         // Limit to 4 threads
-        this(redissonClient, dataSource, 1024, stayDays);
+        this(redissonClient, dataSource, storeName, 1024, stayDays);
     }
 
     public DisruptorWorker(RedissonClient redissonClient,
-            DataSource dataSource, int bufferSize, int stayDays) {
+            DataSource dataSource,
+            String storeName,
+            int bufferSize,
+            int stayDays) {
         // Limit to 4 threads
-        this(redissonClient, dataSource,
+        this(redissonClient,
+                dataSource,
+                storeName,
                 bufferSize,
                 Math.max(AVAILABLE_PROCESSORS, 4),
                 Math.max(AVAILABLE_PROCESSORS * 2, 8),
@@ -78,6 +86,7 @@ public class DisruptorWorker {
 
     public DisruptorWorker(RedissonClient redissonClient,
             DataSource dataSource,
+            String storeName,
             int bufferSize,
             int coreSize,
             int maxSize,
@@ -96,7 +105,7 @@ public class DisruptorWorker {
                 bufferSize,
                 new DisruptorWorkerThreadFactory("d-main"));
         this.workProcessors = new HashMap<>();
-        this.workerStore = new MysqlWorkerStore(dataSource);
+        this.workerStore = WorkerStoreProcessor.get(storeName).create(dataSource);
         this.redissonClient = redissonClient;
         this.limitsManager = new LocalLimitsManager();
         this.stayDays = stayDays;
@@ -270,7 +279,6 @@ public class DisruptorWorker {
 
                 // update job status to PANDING
                 log.info("Job {} is marked as RUNNING but has no active lock, resetting to PENDING", ctx.getId());
-                ctx.setCurrentStatus(WorkerStatus.PENDING);
                 workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.PENDING,
                         ctx.getCurrentStatus(),
                         "Reset due to no active lock");

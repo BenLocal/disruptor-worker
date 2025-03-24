@@ -11,11 +11,11 @@ public class WorkerPublisher {
     }
 
     public void publish(Class<? extends WorkHandler> clazz, String workerId, String payload) {
-        publish(workerId, clazz.getName(), payload, false);
+        publish(clazz.getName(), workerId, payload, false);
     }
 
     public void publish(Class<? extends WorkHandler> clazz, String workerId, String payload, boolean froce) {
-        publish(workerId, clazz.getName(), payload, froce);
+        publish(clazz.getName(), workerId, payload, froce);
     }
 
     public void publish(String handlerId, String workerId, String payload, boolean froce) {

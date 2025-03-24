@@ -37,6 +37,7 @@ public class TaskWorker implements WorkHandler {
     @Scheduled(fixedRate = 1000)
     public void job1() {
         long a = count.incrementAndGet();
-        workerPublisher.publish(TaskWorker.class, "job1" + a, String.valueOf(a), true);
+        // workerPublisher.publish(TaskWorker.class, "job1" + a, String.valueOf(a),
+        // true);
     }
 }
