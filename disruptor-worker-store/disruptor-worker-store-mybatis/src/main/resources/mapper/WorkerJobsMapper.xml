@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.github.benshi.worker.store.mapper.WorkerJobsMapper">
+    
+    <resultMap id="workerJobMap" type="com.github.benshi.worker.store.model.WorkerJob">
+        <id property="id" column="id"/>
+        <result property="workId" column="work_id"/>
+        <result property="handlerId" column="handler_id"/>
+        <result property="payload" column="payload"/>
+        <result property="status" column="status"/>
+        <result property="priority" column="priority"/>
+        <result property="retryCount" column="retry_count"/>
+        <result property="message" column="message"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+    
+    <insert id="insertWorkerJob" parameterType="com.github.benshi.worker.store.model.WorkerJob">
+        INSERT INTO worker_jobs (
+            work_id, 
+            handler_id, 
+            payload, 
+            status, 
+            priority,
+            created_at, 
+            updated_at
+        ) VALUES (
+            #{workId}, 
+            #{handlerId}, 
+            #{payload}, 
+            #{status}, 
+            #{priority},
+            NOW(), 
+            NOW()
+        )
+    </insert>
+    
+    <select id="getWorkerJobsByStatus" resultMap="workerJobMap">
+        SELECT 
+            id, work_id, handler_id, payload, status, priority, retry_count, message, created_at, updated_at
+        FROM 
+            worker_jobs
+        WHERE 
+            status = #{status}
+        ORDER BY 
+            priority DESC, updated_at ASC
+        LIMIT 
+            #{limit}
+    </select>
+    
+    <update id="updateWorkerJobStatus">
+        UPDATE 
+            worker_jobs
+        SET 
+            status = #{status}, 
+            updated_at = NOW(), 
+            message = #{message}
+        WHERE 
+            id = #{id} 
+            AND status = #{currentStatus}
+    </update>
+    
+    <select id="getWorkerJobById" resultMap="workerJobMap">
+        SELECT 
+            id, work_id, handler_id, payload, status, priority, retry_count, message, created_at, updated_at
+        FROM 
+            worker_jobs
+        WHERE 
+            id = #{id}
+    </select>
+    
+    <delete id="deleteJobsOlderThan">
+        DELETE FROM 
+            worker_jobs 
+        WHERE 
+            updated_at &lt; #{cutoffDate} 
+            AND status != #{excludeStatus}
+    </delete>
+    
+    <select id="getWorkerJobByWorkIdAndHandlerId" resultMap="workerJobMap">
+        SELECT 
+            id, work_id, handler_id, payload, status, priority, retry_count, message, created_at, updated_at
+        FROM 
+            worker_jobs
+        WHERE 
+            work_id = #{workId} 
+            AND handler_id = #{handlerId}
+    </select>
+    
+    <select id="listWorkerJobs" resultMap="workerJobMap">
+        SELECT 
+            id, work_id, handler_id, payload, status, priority, retry_count, message, created_at, updated_at
+        FROM 
+            worker_jobs
+        <where>
+            <if test="filter != null and filter != ''">
+                work_id LIKE CONCAT('%', #{filter}, '%')
+            </if>
+        </where>
+        ORDER BY 
+            priority DESC, updated_at ASC
+        LIMIT 
+            #{limit} OFFSET #{offset}
+    </select>
+    
+    <select id="countWorkerJobs" resultType="long">
+        SELECT 
+            COUNT(*)
+        FROM 
+            worker_jobs
+        <where>
+            <if test="filter != null and filter != ''">
+                work_id LIKE CONCAT('%', #{filter}, '%')
+            </if>
+        </where>
+    </select>
+    
+</mapper>

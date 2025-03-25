@@ -30,6 +30,7 @@
         <junit.version>4.13.2</junit.version>
         <spring.boot.version>2.7.14</spring.boot.version>
         <redisson.springboot.version>3.18.0</redisson.springboot.version>
+        <mybatis.version>3.5.13</mybatis.version>
     </properties>
 
 
@@ -101,6 +102,12 @@
                 <groupId>org.redisson</groupId>
                 <artifactId>redisson-spring-boot-starter</artifactId>
                 <version>${redisson.springboot.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.mybatis</groupId>
+                <artifactId>mybatis</artifactId>
+                <version>${mybatis.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

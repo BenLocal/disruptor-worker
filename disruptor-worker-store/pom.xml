@@ -17,6 +17,7 @@
     <modules>
         <module>disruptor-worker-store-core</module>
         <module>disruptor-worker-store-jdbc</module>
+        <module>disruptor-worker-store-mybatis</module>
     </modules>
 
     <properties>
