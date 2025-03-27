@@ -159,7 +159,8 @@ public class MysqlWorkerStoreTest {
                 .setWorkId("1")
                 .setHandlerId("1")
                 .setPayload("1")
-                .setMaxRetryCount(2));
+                .setMaxRetryCount(2)
+                .setRetryIntervalSeconds(3600));
         WorkContext current = store.getWorkerByWorkId("1", "1");
         if (current == null) {
             Assert.fail("current is null");
@@ -179,6 +180,11 @@ public class MysqlWorkerStoreTest {
         WorkContext current2 = store.getWorkerByWorkId("1", "1");
         Assert.assertEquals(current2.getCurrentStatus(), WorkerStatus.RETRY);
         Assert.assertEquals(current2.getRetryCount(), 1);
+
+        store.updateWorkerStatus(current.getId(), WorkerStatus.RETRY, current2.getCurrentStatus(), "test retry");
+        WorkContext current3 = store.getWorkerByWorkId("1", "1");
+        Assert.assertEquals(current3.getCurrentStatus(), WorkerStatus.RETRY);
+        Assert.assertEquals(current3.getRetryCount(), 2);
     }
 
     private DataSource initDataSource() {
