@@ -34,7 +34,7 @@ public class TaskWorker implements WorkHandler {
 
     private final AtomicLong count = new AtomicLong(0);
 
-    @Scheduled(fixedRate = 1000)
+    @Scheduled(fixedRate = 19000)
     public void job1() {
         long a = count.incrementAndGet();
         workerPublisher.publish(TaskWorker.class, "job1" + a, String.valueOf(a),

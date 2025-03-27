@@ -1,1 +1,1 @@
-com.github.benshi.worker.store.MysqlWorkStoreFactory
+com.github.benshi.worker.store.jdbc.MysqlWorkStoreFactory

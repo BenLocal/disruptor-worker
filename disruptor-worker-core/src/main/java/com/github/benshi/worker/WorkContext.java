@@ -16,10 +16,14 @@ public class WorkContext {
     private String payload;
     // current status
     private WorkerStatus currentStatus;
-    // next status
-    private int currentRetryCount;
+    // current retry count
+    private int retryCount;
     // 强制运行
     private boolean force;
+    // 最大重试次数
+    private int maxRetryCount;
+    // retry interval seconds
+    private int retryIntervalSeconds;
 
     private final static String BASE_WORKER_KEY = "worker-lock-";
 

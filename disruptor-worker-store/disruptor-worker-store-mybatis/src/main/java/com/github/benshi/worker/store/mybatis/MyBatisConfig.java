@@ -1,4 +1,4 @@
-package com.github.benshi.worker.store;
+package com.github.benshi.worker.store.mybatis;
 
 import javax.sql.DataSource;
 
@@ -10,7 +10,7 @@ import org.apache.ibatis.session.SqlSessionFactoryBuilder;
 import org.apache.ibatis.transaction.TransactionFactory;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 
-import com.github.benshi.worker.store.mapper.WorkerJobsMapper;
+import com.github.benshi.worker.store.mybatis.mapper.WorkerJobsMapper;
 
 import lombok.extern.slf4j.Slf4j;
 

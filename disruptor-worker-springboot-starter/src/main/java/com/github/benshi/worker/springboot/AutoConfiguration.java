@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import com.github.benshi.worker.DisruptorWorker;
+import com.github.benshi.worker.DisruptorWorkerOptions;
 
 @Configuration
 @EnableConfigurationProperties({ WorkerProperties.class,
@@ -37,12 +38,18 @@ public class AutoConfiguration {
             RedissonClient redissonClient) {
         int bufferSize = workerProperties.getBufferSize();
         int stayDays = workerProperties.getStayDays();
+
+        DisruptorWorkerOptions options = DisruptorWorkerOptions.builder()
+                .storeName(workerProperties.getStoreDirver())
+                .dataSource(dateSource)
+                .bufferSize(bufferSize)
+                .stayDays(stayDays)
+                .build();
+
         return new DisruptorWorker(
                 redissonClient,
                 dateSource,
-                workerProperties.getStoreDirver(),
-                bufferSize,
-                stayDays);
+                options);
     }
 
     @Bean

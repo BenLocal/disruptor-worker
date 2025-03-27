@@ -1,4 +1,4 @@
-package com.github.benshi.worker.store;
+package com.github.benshi.worker.store.jdbc;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -13,6 +13,7 @@ import javax.sql.DataSource;
 
 import com.github.benshi.worker.WorkContext;
 import com.github.benshi.worker.WorkerStatus;
+import com.github.benshi.worker.store.WorkerStore;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,12 +36,14 @@ public class MysqlWorkerStore implements WorkerStore {
 
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "INSERT INTO worker_jobs (work_id, handler_id, payload, status, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())")) {
+                        "INSERT INTO worker_jobs (work_id, handler_id, payload, status, created_at, updated_at, max_retry_count, retry_interval_seconds) VALUES (?, ?, ?, ?, NOW(), NOW(), ?, ?)")) {
 
             stmt.setString(1, ctx.getWorkId());
             stmt.setString(2, ctx.getHandlerId());
             stmt.setString(3, ctx.getPayload());
             stmt.setString(4, WorkerStatus.PENDING.name());
+            stmt.setInt(5, ctx.getMaxRetryCount());
+            stmt.setInt(6, ctx.getRetryIntervalSeconds());
             int rows = stmt.executeUpdate();
             return rows > 0;
         }
@@ -50,14 +53,19 @@ public class MysqlWorkerStore implements WorkerStore {
     @Override
     public List<WorkContext> getWorkersByStatus(WorkerStatus status, int limit) throws Exception {
         List<WorkContext> jobs = new ArrayList<>();
+        String us = "SELECT id, work_id, handler_id, payload, retry_count," +
+                " status, max_retry_count,retry_interval_seconds " +
+                "FROM worker_jobs " +
+                "WHERE status = ? ";
 
+        if (status == WorkerStatus.RETRY) {
+            us += "AND retry_at <= NOW() ";
+        }
+
+        us += "ORDER BY priority DESC, updated_at ASC " +
+                "LIMIT ?";
         try (Connection conn = dataSource.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT id, work_id, handler_id, payload, retry_count, status " +
-                                "FROM worker_jobs " +
-                                "WHERE status = ? " +
-                                "ORDER BY priority DESC, updated_at ASC " +
-                                "LIMIT ?")) {
+                PreparedStatement stmt = conn.prepareStatement(us)) {
 
             stmt.setString(1, status.name());
             stmt.setInt(2, limit);
@@ -70,7 +78,9 @@ public class MysqlWorkerStore implements WorkerStore {
                     ctx.setHandlerId(rs.getString("handler_id"));
                     ctx.setPayload(rs.getString("payload"));
                     ctx.setCurrentStatus(WorkerStatus.valueOf(rs.getString("status")));
-                    ctx.setCurrentRetryCount(rs.getInt("retry_count"));
+                    ctx.setRetryCount(rs.getInt("retry_count"));
+                    ctx.setMaxRetryCount(rs.getInt("max_retry_count"));
+                    ctx.setRetryIntervalSeconds(rs.getInt("retry_interval_seconds"));
                     jobs.add(ctx);
                 }
             }
@@ -82,12 +92,17 @@ public class MysqlWorkerStore implements WorkerStore {
     @Override
     public boolean updateWorkerStatus(long id, WorkerStatus status, WorkerStatus current, String message)
             throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(
-                        "UPDATE worker_jobs " +
-                                "SET status = ?, updated_at = NOW(), message = ? " +
-                                "WHERE id = ? AND status = ?")) {
+        String us = "UPDATE worker_jobs " +
+                "SET status = ?, updated_at = NOW(), message = ? ";
 
+        if (status == WorkerStatus.RETRY) {
+            us += ", retry_count = retry_count + 1,  retry_at = DATE_ADD(NOW(), INTERVAL (retry_interval_seconds * retry_count * retry_count) SECOND) ";
+        }
+
+        us += "WHERE id = ? AND status = ?";
+
+        try (Connection conn = dataSource.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(us)) {
             stmt.setString(1, status.name());
             stmt.setString(2, message);
             stmt.setLong(3, id);
@@ -97,15 +112,17 @@ public class MysqlWorkerStore implements WorkerStore {
             int updated = stmt.executeUpdate();
             return updated > 0;
         }
+
     }
 
     @Override
     public WorkContext getWorkerById(long id) throws Exception {
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT id, work_id, handler_id, payload, retry_count, status " +
+                        "SELECT id, work_id, handler_id, payload, retry_count, status, max_retry_count, retry_interval_seconds "
+                                +
                                 "FROM worker_jobs " +
-                                "WHERE work_id = ? ")) {
+                                "WHERE id = ? ")) {
 
             stmt.setLong(1, id);
 
@@ -118,7 +135,9 @@ public class MysqlWorkerStore implements WorkerStore {
                     ctx.setHandlerId(rs.getString("handler_id"));
                     ctx.setPayload(rs.getString("payload"));
                     ctx.setCurrentStatus(WorkerStatus.valueOf(rs.getString("status")));
-                    ctx.setCurrentRetryCount(rs.getInt("retry_count"));
+                    ctx.setRetryCount(rs.getInt("retry_count"));
+                    ctx.setMaxRetryCount(rs.getInt("max_retry_count"));
+                    ctx.setRetryIntervalSeconds(rs.getInt("retry_interval_seconds"));
                 } else {
                     return null;
                 }
@@ -151,7 +170,8 @@ public class MysqlWorkerStore implements WorkerStore {
 
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT id, work_id, handler_id, payload, retry_count, status " +
+                        "SELECT id, work_id, handler_id, payload, retry_count, status, max_retry_count, retry_interval_seconds "
+                                +
                                 "FROM worker_jobs " +
                                 "WHERE work_id = ? AND handler_id = ? ")) {
 
@@ -167,7 +187,9 @@ public class MysqlWorkerStore implements WorkerStore {
                     ctx.setHandlerId(rs.getString("handler_id"));
                     ctx.setPayload(rs.getString("payload"));
                     ctx.setCurrentStatus(WorkerStatus.valueOf(rs.getString("status")));
-                    ctx.setCurrentRetryCount(rs.getInt("retry_count"));
+                    ctx.setRetryCount(rs.getInt("retry_count"));
+                    ctx.setMaxRetryCount(rs.getInt("max_retry_count"));
+                    ctx.setRetryIntervalSeconds(rs.getInt("retry_interval_seconds"));
                 } else {
                     return null;
                 }
@@ -185,7 +207,8 @@ public class MysqlWorkerStore implements WorkerStore {
         }
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT id, work_id, handler_id, payload, retry_count, status " +
+                        "SELECT id, work_id, handler_id, payload, retry_count, status, max_retry_count, retry_interval_seconds "
+                                +
                                 "FROM worker_jobs " +
                                 "WHERE work_id LIKE ? " +
                                 "ORDER BY priority DESC, updated_at ASC " +
@@ -203,7 +226,9 @@ public class MysqlWorkerStore implements WorkerStore {
                     ctx.setHandlerId(rs.getString("handler_id"));
                     ctx.setPayload(rs.getString("payload"));
                     ctx.setCurrentStatus(WorkerStatus.valueOf(rs.getString("status")));
-                    ctx.setCurrentRetryCount(rs.getInt("retry_count"));
+                    ctx.setRetryCount(rs.getInt("retry_count"));
+                    ctx.setMaxRetryCount(rs.getInt("max_retry_count"));
+                    ctx.setRetryIntervalSeconds(rs.getInt("retry_interval_seconds"));
                     jobs.add(ctx);
                 }
             }

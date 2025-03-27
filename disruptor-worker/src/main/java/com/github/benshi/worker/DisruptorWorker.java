@@ -51,47 +51,13 @@ public class DisruptorWorker {
     private final Map<String, WorkHandler> jobHandlers = new HashMap<>();
     private final Map<String, Integer> jobLimits = new ConcurrentHashMap<>();
 
-    // Get available CPU cores
-    private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
-
     public DisruptorWorker(RedissonClient redissonClient,
             DataSource dataSource,
-            String storeName) {
-        // Limit to 4 threads
-        this(redissonClient, dataSource, storeName, 1024, 7);
-    }
-
-    public DisruptorWorker(RedissonClient redissonClient,
-            DataSource dataSource,
-            String storeName,
-            int stayDays) {
-        // Limit to 4 threads
-        this(redissonClient, dataSource, storeName, 1024, stayDays);
-    }
-
-    public DisruptorWorker(RedissonClient redissonClient,
-            DataSource dataSource,
-            String storeName,
-            int bufferSize,
-            int stayDays) {
-        // Limit to 4 threads
-        this(redissonClient,
-                dataSource,
-                storeName,
-                bufferSize,
-                Math.max(AVAILABLE_PROCESSORS, 4),
-                Math.max(AVAILABLE_PROCESSORS * 2, 8),
-                stayDays);
-    }
-
-    public DisruptorWorker(RedissonClient redissonClient,
-            DataSource dataSource,
-            String storeName,
-            int bufferSize,
-            int coreSize,
-            int maxSize,
-            int stayDays) {
-        this.bufferSize = bufferSize;
+            DisruptorWorkerOptions options) {
+        this.bufferSize = options.getBufferSize();
+        int coreSize = options.getCoreSize();
+        int maxSize = options.getMaxSize();
+        this.stayDays = options.getStayDays();
         this.executor = new ThreadPoolExecutor(
                 coreSize,
                 maxSize,
@@ -105,20 +71,19 @@ public class DisruptorWorker {
                 bufferSize,
                 new DisruptorWorkerThreadFactory("d-main"));
         this.workProcessors = new HashMap<>();
-        this.workerStore = WorkerStoreProcessor.get(storeName).create(dataSource);
+        this.workerStore = WorkerStoreProcessor.get(options.getStoreName()).create(dataSource);
         this.redissonClient = redissonClient;
         this.limitsManager = new LocalLimitsManager();
-        this.stayDays = stayDays;
 
         // Initialize scheduler for periodic database polling
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(
+        this.scheduler = Executors.newScheduledThreadPool(3,
                 new DisruptorWorkerThreadFactory("job-poller"));
 
         DisruptorHandler handler = new DisruptorHandler(this.workerStore,
                 this.redissonClient, this.limitsManager);
         this.disruptor.setDefaultExceptionHandler(handler);
         this.ringBuffer = disruptor.getRingBuffer();
-        for (int i = 0; i < coreSize; i++) {
+        for (int i = 0; i < options.getCoreSize(); i++) {
             WorkProcessor<WorkerHandlerEvent> wp = new WorkProcessor<>(
                     ringBuffer,
                     ringBuffer.newBarrier(),
@@ -158,6 +123,12 @@ public class DisruptorWorker {
                 this::clearJobs,
                 1000,
                 1000 * 60 * 60 * 24,
+                TimeUnit.MILLISECONDS);
+
+        this.scheduler.scheduleWithFixedDelay(
+                this::pollRetryWorkersFromDatabase,
+                1000,
+                DEFAULT_POLL_INTERVAL_MS * 2,
                 TimeUnit.MILLISECONDS);
     }
 
@@ -282,7 +253,7 @@ public class DisruptorWorker {
                 workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.PENDING,
                         ctx.getCurrentStatus(),
                         "Reset due to no active lock");
-                log.info("Job {} reset to PENDING", ctx.getId());
+                log.info("Job {} RUNNING reset to PENDING", ctx.getId());
 
             }
         } catch (Exception e) {
@@ -341,6 +312,33 @@ public class DisruptorWorker {
             }
         } catch (Exception e) {
             log.error("Error polling jobs from database", e);
+        }
+    }
+
+    private void pollRetryWorkersFromDatabase() {
+        try {
+            List<WorkContext> retryJobs = this.workerStore.getWorkersByStatus(WorkerStatus.RETRY,
+                    this.bufferSize * 2);
+            if (retryJobs.isEmpty()) {
+                return;
+            }
+            for (WorkContext ctx : retryJobs) {
+                RLock lock = redissonClient.getLock(ctx.lockKey());
+                if (lock.isLocked() && !lock.isHeldByCurrentThread()) {
+                    // Job is still running, skip
+                    continue;
+                }
+
+                // update job status to PANDING
+                log.info("Job {} is marked as RETRY, resetting to PENDING", ctx.getId());
+                workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.PENDING,
+                        ctx.getCurrentStatus(),
+                        "Reset due to retry");
+                log.info("Job {} RETRY reset to PENDING", ctx.getId());
+
+            }
+        } catch (Exception e) {
+            log.error("Error polling running jobs from database", e);
         }
     }
 

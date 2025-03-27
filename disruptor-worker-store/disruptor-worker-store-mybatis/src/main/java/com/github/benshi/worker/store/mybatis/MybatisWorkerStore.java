@@ -1,4 +1,4 @@
-package com.github.benshi.worker.store;
+package com.github.benshi.worker.store.mybatis;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -9,8 +9,9 @@ import org.apache.ibatis.session.SqlSession;
 
 import com.github.benshi.worker.WorkContext;
 import com.github.benshi.worker.WorkerStatus;
-import com.github.benshi.worker.store.dao.WorkerJob;
-import com.github.benshi.worker.store.mapper.WorkerJobsMapper;
+import com.github.benshi.worker.store.WorkerStore;
+import com.github.benshi.worker.store.mybatis.dao.WorkerJob;
+import com.github.benshi.worker.store.mybatis.mapper.WorkerJobsMapper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +63,7 @@ public class MybatisWorkerStore implements WorkerStore {
                         .setHandlerId(job.getHandlerId())
                         .setPayload(job.getPayload())
                         .setCurrentStatus(WorkerStatus.valueOf(job.getStatus()))
-                        .setCurrentRetryCount(job.getRetryCount());
+                        .setRetryCount(job.getRetryCount());
 
                 contexts.add(ctx);
             }
@@ -99,7 +100,7 @@ public class MybatisWorkerStore implements WorkerStore {
                     .setHandlerId(job.getHandlerId())
                     .setPayload(job.getPayload())
                     .setCurrentStatus(WorkerStatus.valueOf(job.getStatus()))
-                    .setCurrentRetryCount(job.getRetryCount());
+                    .setRetryCount(job.getRetryCount());
         }
     }
 
@@ -129,7 +130,7 @@ public class MybatisWorkerStore implements WorkerStore {
                     .setHandlerId(job.getHandlerId())
                     .setPayload(job.getPayload())
                     .setCurrentStatus(WorkerStatus.valueOf(job.getStatus()))
-                    .setCurrentRetryCount(job.getRetryCount());
+                    .setRetryCount(job.getRetryCount());
         }
     }
 
@@ -149,7 +150,7 @@ public class MybatisWorkerStore implements WorkerStore {
                         .setHandlerId(job.getHandlerId())
                         .setPayload(job.getPayload())
                         .setCurrentStatus(WorkerStatus.valueOf(job.getStatus()))
-                        .setCurrentRetryCount(job.getRetryCount());
+                        .setRetryCount(job.getRetryCount());
 
                 contexts.add(ctx);
             }

@@ -1,11 +1,11 @@
-package com.github.benshi.worker.store.mapper;
+package com.github.benshi.worker.store.mybatis.mapper;
 
 import java.util.Date;
 import java.util.List;
 
 import org.apache.ibatis.annotations.Param;
 
-import com.github.benshi.worker.store.dao.WorkerJob;
+import com.github.benshi.worker.store.mybatis.dao.WorkerJob;
 
 public interface WorkerJobsMapper {
     /**
@@ -63,7 +63,8 @@ public interface WorkerJobsMapper {
      * @param handlerId The handler ID
      * @return The worker job
      */
-    WorkerJob getWorkerJobByWorkIdAndHandlerId(@Param("workId") String workId, @Param("handlerId") String handlerId);
+    WorkerJob getWorkerJobByWorkIdAndHandlerId(@Param("workId") String workId,
+            @Param("handlerId") String handlerId);
 
     /**
      * List worker jobs with pagination and filtering

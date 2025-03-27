@@ -21,5 +21,6 @@ public class ListResponse {
         private String payload;
         private String status;
         private int retryCount;
+        private int maxRetryCount;
     }
 }

@@ -1,4 +1,4 @@
-package com.github.benshi.worker.store.dao;
+package com.github.benshi.worker.store.mybatis.dao;
 
 import java.util.Date;
 
@@ -15,7 +15,9 @@ public class WorkerJob {
     private String status;
     private Integer priority;
     private Integer retryCount;
+    private Integer maxRetryCount;
     private String message;
     private Date createdAt;
     private Date updatedAt;
+    private Date retryAt;
 }

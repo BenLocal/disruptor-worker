@@ -74,8 +74,9 @@ public class ApiController {
                             .setHandlerId(ctx.getHandlerId())
                             .setPayload(ctx.getPayload())
                             .setStatus(ctx.getCurrentStatus().name())
-                            .setRetryCount(ctx.getCurrentRetryCount())
-                            .setWorkId(ctx.getWorkId()))
+                            .setRetryCount(ctx.getRetryCount())
+                            .setWorkId(ctx.getWorkId())
+                            .setMaxRetryCount(ctx.getMaxRetryCount()))
                     .collect(Collectors.toList());
             return ResponseEntity.ok(new ListResponse()
                     .setItems(items)

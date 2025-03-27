@@ -1,6 +1,9 @@
-package com.github.benshi.worker.store;
+package com.github.benshi.worker.store.jdbc;
 
 import javax.sql.DataSource;
+
+import com.github.benshi.worker.store.WorkStoreFactory;
+import com.github.benshi.worker.store.WorkerStore;
 
 public class MysqlWorkStoreFactory implements WorkStoreFactory {
     @Override
