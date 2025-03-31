@@ -5,3 +5,15 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
+
+  mysql:
+    image: mysql:8.0
+    container_name: gen_mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    ports:
+      - 3306:3306
+    volumes:
+      - ./mysql:/var/lib/mysql
+    command: [ "mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--init-connect='SET NAMES utf8mb4'", "--skip-character-set-client-handshake" ]
+    restart: always
