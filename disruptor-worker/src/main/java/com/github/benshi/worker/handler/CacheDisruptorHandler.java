@@ -28,9 +28,6 @@ public class CacheDisruptorHandler extends BaseDisruptorHandler {
         WorkContext ctx = event.getCtx();
         try {
             RLock lock = redissonClient.getLock(ctx.lockKey());
-            if (lock.isLocked()) {
-                return;
-            }
             if (lock.tryLock(2, 30, TimeUnit.SECONDS)) {
                 try {
                     event.getHandler().run(new WorkHandlerMessage(ctx.getId(),
