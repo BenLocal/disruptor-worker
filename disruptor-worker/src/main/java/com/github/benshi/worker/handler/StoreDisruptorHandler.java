@@ -1,21 +1,23 @@
-package com.github.benshi.worker;
+package com.github.benshi.worker.handler;
 
 import java.util.concurrent.TimeUnit;
 
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
+import com.github.benshi.worker.WorkContext;
+import com.github.benshi.worker.WorkHandlerMessage;
+import com.github.benshi.worker.WorkerHandlerEvent;
+import com.github.benshi.worker.WorkerStatus;
 import com.github.benshi.worker.cache.LimitsManager;
 import com.github.benshi.worker.store.WorkerStore;
-import com.lmax.disruptor.ExceptionHandler;
-import com.lmax.disruptor.WorkHandler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
 @Slf4j
-public class DisruptorHandler implements WorkHandler<WorkerHandlerEvent>, ExceptionHandler<WorkerHandlerEvent> {
+public class StoreDisruptorHandler extends BaseDisruptorHandler {
     private final WorkerStore workerStore;
     private final RedissonClient redissonClient;
     private final LimitsManager limitsManager;
@@ -31,7 +33,7 @@ public class DisruptorHandler implements WorkHandler<WorkerHandlerEvent>, Except
             WorkerStatus current = ctx.getCurrentStatus();
             try {
                 RLock lock = redissonClient.getLock(ctx.lockKey());
-                if (lock.tryLock(10, 30, TimeUnit.SECONDS)) {
+                if (lock.tryLock(2, 30, TimeUnit.SECONDS)) {
                     try {
                         // set worker status to running
                         log.info("Processing job {} for workId {} with handler {}", ctx.getId(), ctx.getWorkId(),
@@ -98,7 +100,12 @@ public class DisruptorHandler implements WorkHandler<WorkerHandlerEvent>, Except
 
     @Override
     public void handleEventException(Throwable ex, long sequence, WorkerHandlerEvent event) {
-        log.error("Exception during processing event", ex);
+        if (ex instanceof java.lang.InterruptedException) {
+            Thread.currentThread().interrupt();
+        } else {
+            log.error("Exception during processing event", ex);
+        }
+
         if (event != null && event.getCtx() != null) {
             try {
                 WorkContext ctx = event.getCtx();
@@ -109,15 +116,4 @@ public class DisruptorHandler implements WorkHandler<WorkerHandlerEvent>, Except
             }
         }
     }
-
-    @Override
-    public void handleOnStartException(Throwable ex) {
-        log.error("Exception during start", ex);
-    }
-
-    @Override
-    public void handleOnShutdownException(Throwable ex) {
-        log.error("Exception during shutdown", ex);
-    }
-
 }

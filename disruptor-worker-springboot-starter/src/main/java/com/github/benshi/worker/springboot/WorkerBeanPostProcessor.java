@@ -5,8 +5,9 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 
+import com.github.benshi.worker.CacheDisruptorWorker;
 import com.github.benshi.worker.DisruptorWorker;
-import com.github.benshi.worker.WorkHandler;
+import com.github.benshi.worker.WorkerHandler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingBean, DisposableBean {
     private final DisruptorWorker worker;
+    private final CacheDisruptorWorker cacheWorker;
 
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
@@ -39,7 +41,7 @@ public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingB
 
         boolean isHandler = false;
         for (Class<?> item : bean.getClass().getInterfaces()) {
-            if (item.isAssignableFrom(WorkHandler.class)) {
+            if (item.isAssignableFrom(WorkerHandler.class)) {
                 isHandler = true;
                 break;
             }
@@ -51,7 +53,12 @@ public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingB
 
         String handlerId = clazz.getName();
         int limit = aw.limit();
-        this.worker.register(handlerId, (WorkHandler) bean, limit);
+
+        if (aw.cache()) {
+            cacheWorker.register(handlerId, (WorkerHandler) bean, limit);
+        } else {
+            this.worker.register(handlerId, (WorkerHandler) bean, limit);
+        }
         log.info("Registered handler {} with limit {}", handlerId, limit);
     }
 
@@ -59,7 +66,18 @@ public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingB
     public void afterPropertiesSet() throws Exception {
         // Start the DisruptorWorker when Spring context is initialized
         log.info("Starting DisruptorWorker...");
-        this.worker.start();
+        try {
+            this.worker.start();
+        } catch (Exception e) {
+            // ignore the exception
+        }
+
+        try {
+            this.cacheWorker.start();
+        } catch (Exception e) {
+            // ignore the exception
+        }
+
         log.info("DisruptorWorker started successfully");
     }
 
@@ -67,7 +85,18 @@ public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingB
     public void destroy() throws Exception {
         // Shutdown the DisruptorWorker when Spring context is closed
         log.info("Shutting down DisruptorWorker...");
-        this.worker.shutdown();
+        try {
+            this.worker.shutdown();
+        } catch (Exception e) {
+            // ignore the exception
+        }
+
+        try {
+            this.cacheWorker.shutdown();
+        } catch (Exception e) {
+            // ignore the exception
+        }
+
         log.info("DisruptorWorker shutdown complete");
     }
 }

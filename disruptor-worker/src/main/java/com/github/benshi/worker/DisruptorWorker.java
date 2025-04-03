@@ -3,15 +3,7 @@ package com.github.benshi.worker;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
@@ -21,82 +13,40 @@ import org.redisson.api.RedissonClient;
 
 import com.github.benshi.worker.cache.LimitsManager;
 import com.github.benshi.worker.cache.LocalLimitsManager;
+import com.github.benshi.worker.handler.StoreDisruptorHandler;
 import com.github.benshi.worker.store.WorkerStore;
 import com.github.benshi.worker.store.WorkerStoreProcessor;
-import com.lmax.disruptor.RingBuffer;
-import com.lmax.disruptor.Sequence;
-import com.lmax.disruptor.Sequencer;
-import com.lmax.disruptor.WorkProcessor;
-import com.lmax.disruptor.dsl.Disruptor;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class DisruptorWorker {
+public class DisruptorWorker extends BaseDisruptorWorker {
     // 1 second
     private static final int DEFAULT_POLL_INTERVAL_MS = 3000;
 
-    private final ExecutorService executor;
-    private final Sequence workSequence;
-    private final ScheduledExecutorService scheduler;
-    private final Map<Integer, WorkProcessor<?>> workProcessors;
-    private final Disruptor<WorkerHandlerEvent> disruptor;
-    private final RingBuffer<WorkerHandlerEvent> ringBuffer;
     private final WorkerStore workerStore;
-    private final RedissonClient redissonClient;
     private final LimitsManager limitsManager;
-    private final int bufferSize;
-    private final int stayDays;
-
-    private final Map<String, WorkHandler> jobHandlers = new HashMap<>();
-    private final Map<String, Integer> jobLimits = new ConcurrentHashMap<>();
 
     public DisruptorWorker(RedissonClient redissonClient,
             DataSource dataSource,
             DisruptorWorkerOptions options) {
-        this.bufferSize = options.getBufferSize();
-        int coreSize = options.getCoreSize();
-        int maxSize = options.getMaxSize();
-        this.stayDays = options.getStayDays();
-        this.executor = new ThreadPoolExecutor(
-                coreSize,
-                maxSize,
-                120L,
-                TimeUnit.SECONDS,
-                new SynchronousQueue<>(),
-                new DisruptorWorkerThreadFactory("d-worker"));
-        this.workSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-        this.disruptor = new Disruptor<>(
-                WorkerHandlerEvent::new,
-                bufferSize,
-                new DisruptorWorkerThreadFactory("d-main"));
-        this.workProcessors = new HashMap<>();
-        this.workerStore = WorkerStoreProcessor.get(options.getStoreName()).create(dataSource);
-        this.redissonClient = redissonClient;
-        this.limitsManager = new LocalLimitsManager();
-
-        // Initialize scheduler for periodic database polling
-        this.scheduler = Executors.newScheduledThreadPool(3,
-                new DisruptorWorkerThreadFactory("job-poller"));
-
-        DisruptorHandler handler = new DisruptorHandler(this.workerStore,
-                this.redissonClient, this.limitsManager);
-        this.disruptor.setDefaultExceptionHandler(handler);
-        this.ringBuffer = disruptor.getRingBuffer();
-        for (int i = 0; i < options.getCoreSize(); i++) {
-            WorkProcessor<WorkerHandlerEvent> wp = new WorkProcessor<>(
-                    ringBuffer,
-                    ringBuffer.newBarrier(),
-                    handler,
-                    handler,
-                    workSequence);
-            this.executor.execute(wp);
-            this.workProcessors.put(i, wp);
-        }
+        this(redissonClient, options, WorkerStoreProcessor.get(options.getStoreName()).create(dataSource),
+                new LocalLimitsManager());
     }
 
+    public DisruptorWorker(RedissonClient redissonClient,
+            DisruptorWorkerOptions options,
+            WorkerStore workerStore,
+            LimitsManager limitsManager) {
+        super(redissonClient, new StoreDisruptorHandler(workerStore,
+                redissonClient, limitsManager), options);
+        this.limitsManager = limitsManager;
+        this.workerStore = workerStore;
+    }
+
+    @Override
     public void start() {
-        this.disruptor.start();
+        super.start();
 
         // Start polling the database
         // Initial delay of 1 second
@@ -132,6 +82,7 @@ public class DisruptorWorker {
                 TimeUnit.MILLISECONDS);
     }
 
+    @Override
     public void shutdown() {
         log.info("Shutting down DisruptorWorker...");
 
@@ -148,47 +99,12 @@ public class DisruptorWorker {
             }
         }
 
-        // Then shutdown the disruptor
-        if (disruptor != null) {
-            disruptor.shutdown();
-        }
-
-        // Finally shutdown the executor
-        if (executor != null && !executor.isShutdown()) {
-            executor.shutdown();
-            try {
-                if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-                    executor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                executor.shutdownNow();
-            }
-        }
-
+        super.shutdown();
         log.info("DisruptorWorker shutdown complete");
     }
 
-    public void register(String handlerId, WorkHandler handler, int limit) throws WorkerException {
-        if (jobHandlers.containsKey(handlerId)) {
-            throw new WorkerException("handlerId already registered");
-        }
-
-        jobHandlers.put(handlerId, handler);
-        jobLimits.put(handlerId, limit);
-    }
-
-    public boolean submit(String workId, String handerId, String payload, boolean force) {
-        WorkContext ctx = new WorkContext()
-                .setWorkId(workId)
-                .setHandlerId(handerId)
-                .setPayload(payload)
-                .setForce(force);
-
-        return submit(ctx);
-    }
-
-    private boolean submit(WorkContext ctx) {
+    @Override
+    public boolean submit(WorkContext ctx) {
         if (ctx == null || ctx.getHandlerId() == null) {
             return false;
         }
@@ -272,7 +188,7 @@ public class DisruptorWorker {
             }
 
             for (WorkContext ctx : pendingJobs) {
-                WorkHandler handler = jobHandlers.get(ctx.getHandlerId());
+                WorkerHandler handler = jobHandlers.get(ctx.getHandlerId());
                 if (handler == null) {
                     log.debug("No handler found for job {}, handlerId: {}", ctx.getId(), ctx.getHandlerId());
                     continue;

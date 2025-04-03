@@ -17,17 +17,22 @@ public class DisruptorWorkerTest {
         worker.register("TestWorkHandler", new TestWorkHandler(), 2);
 
         for (int i = 0; i < 100; i++) {
-            worker.submit("TestWorkHandler" + i, "TestWorkHandler", "hello world " + i, false);
+            WorkContext ctx = new WorkContext()
+                    .setWorkId("TestWorkHandler" + i)
+                    .setHandlerId("TestWorkHandler")
+                    .setPayload("hello world " + i)
+                    .setForce(false);
+            worker.submit(ctx);
         }
 
         Thread.sleep(5000);
         worker.shutdown();
     }
 
-    private static class TestWorkHandler implements WorkHandler {
+    private static class TestWorkHandler implements WorkerHandler {
 
         @Override
-        public WorkHandlerResult run(WorkHandlerMessage msg) {
+        public WorkHandlerResult run(WorkHandlerMessage msg) throws Exception {
             System.out.println(msg.getWorkId() + " " + msg.getPayload());
             return WorkHandlerResult.success();
         }

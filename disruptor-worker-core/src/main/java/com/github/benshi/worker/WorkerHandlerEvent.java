@@ -5,5 +5,5 @@ import lombok.Data;
 @Data
 public class WorkerHandlerEvent {
     private WorkContext ctx;
-    private WorkHandler handler;
+    private WorkerHandler handler;
 }

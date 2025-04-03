@@ -38,7 +38,7 @@ public class ApiController {
                         .setMessage("worker not found"));
             }
 
-            workerPublisher.publish(ctx.getHandlerId(), ctx.getWorkId(), ctx.getPayload(), true);
+            workerPublisher.publish(ctx.getHandlerId(), false, ctx.getWorkId(), ctx.getPayload(), true);
             return ResponseEntity.ok(new PublishResponse()
                     .setStatus(true));
         } catch (Exception e) {

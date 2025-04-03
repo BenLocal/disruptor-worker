@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.iflysse.benshi.worker</groupId>
+    <groupId>com.github.benshi.worker</groupId>
     <artifactId>disruptor-worker-parent</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -117,20 +117,4 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
-    <distributionManagement>
-        <!--涉及到权限，需要配置自己所属BU/BG的仓库 -->
-        <repository>
-            <id>mvn-releases</id>
-            <url>
-                https://depend.iflytek.com/artifactory/cbg-mvn-release-private/
-            </url>
-        </repository>
-        <snapshotRepository>
-            <id>mvn-snapshots</id>
-            <url>
-                https://depend.iflytek.com/artifactory/cbg-mvn-snapshot-private/
-            </url>
-        </snapshotRepository>
-    </distributionManagement>
 </project>

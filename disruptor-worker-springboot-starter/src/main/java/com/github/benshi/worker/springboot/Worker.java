@@ -11,4 +11,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Worker {
     int limit() default 0;
+
+    boolean cache() default false;
 }
