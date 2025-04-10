@@ -1,7 +1,5 @@
 package com.github.benshi.worker.handler;
 
-import java.util.concurrent.TimeUnit;
-
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
@@ -33,7 +31,7 @@ public class StoreDisruptorHandler extends BaseDisruptorHandler {
             WorkerStatus current = ctx.getCurrentStatus();
             try {
                 RLock lock = redissonClient.getLock(ctx.lockKey());
-                if (lock.tryLock(2, 30, TimeUnit.SECONDS)) {
+                if (lock.tryLock()) {
                     try {
                         // set worker status to running
                         log.info("Processing job {} for workId {} with handler {}", ctx.getId(), ctx.getWorkId(),
@@ -57,7 +55,9 @@ public class StoreDisruptorHandler extends BaseDisruptorHandler {
                         current = WorkerStatus.COMPLETED;
                         log.info("Job {} completed successfully", ctx.getId());
                     } finally {
-                        lock.unlock();
+                        if (lock.isHeldByCurrentThread()) {
+                            lock.unlock();
+                        }
                     }
                 }
             } catch (Exception e) {

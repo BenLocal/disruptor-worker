@@ -1,5 +1,7 @@
 package com.github.benshi.worker;
 
+import java.util.Properties;
+
 import javax.sql.DataSource;
 
 import lombok.Builder;
@@ -16,6 +18,7 @@ public class DisruptorWorkerOptions {
     private int bufferSize;
     private int coreSize;
     private int maxSize;
+    private Properties properties;
 
     // Get available CPU cores
     private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();

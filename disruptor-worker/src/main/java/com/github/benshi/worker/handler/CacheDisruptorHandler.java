@@ -1,7 +1,5 @@
 package com.github.benshi.worker.handler;
 
-import java.util.concurrent.TimeUnit;
-
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
@@ -28,17 +26,22 @@ public class CacheDisruptorHandler extends BaseDisruptorHandler {
         WorkContext ctx = event.getCtx();
         try {
             RLock lock = redissonClient.getLock(ctx.lockKey());
-            if (lock.tryLock(2, 30, TimeUnit.SECONDS)) {
+            // use lock with watchdog to prevent deadlock
+            if (lock.tryLock()) {
                 try {
                     event.getHandler().run(new WorkHandlerMessage(ctx.getId(),
                             ctx.getWorkId(), ctx.getPayload()));
-                    log.info("Job {} completed successfully", ctx.getId());
+                    log.info("Job handlerId ({}), workerId ({}) completed successfully", ctx.getHandlerId(),
+                            ctx.getWorkId());
                 } finally {
-                    lock.unlock();
+                    if (lock.isHeldByCurrentThread()) {
+                        // unlock the lock after processing
+                        lock.unlock();
+                    }
                 }
             }
         } catch (Exception e) {
-            log.error("Error processing job {} for workId {} with handler {}", ctx.getId(), ctx.getWorkId(),
+            log.error("Error processing job for workId {} with handler {}", ctx.getWorkId(),
                     ctx.getHandlerId(), e);
         } finally {
             if (event != null && event.getCtx() != null && event.getCtx().getHandlerId() != null) {

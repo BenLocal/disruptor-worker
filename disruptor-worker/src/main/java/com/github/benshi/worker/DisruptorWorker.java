@@ -6,8 +6,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import javax.sql.DataSource;
-
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
@@ -28,9 +26,8 @@ public class DisruptorWorker extends BaseDisruptorWorker {
     private final LimitsManager limitsManager;
 
     public DisruptorWorker(RedissonClient redissonClient,
-            DataSource dataSource,
             DisruptorWorkerOptions options) {
-        this(redissonClient, options, WorkerStoreProcessor.get(options.getStoreName()).create(dataSource),
+        this(redissonClient, options, WorkerStoreProcessor.get(options.getStoreName()).create(options.getProperties()),
                 new LocalLimitsManager());
     }
 
@@ -115,7 +112,7 @@ public class DisruptorWorker extends BaseDisruptorWorker {
                 WorkContext db = workerStore.getWorkerByWorkId(ctx.getWorkId(), ctx.getHandlerId());
                 if (db != null && db.getCurrentStatus() != WorkerStatus.RUNNING) {
                     RLock lock = redissonClient.getLock(ctx.lockKey());
-                    if (lock.tryLock(10, 30, TimeUnit.SECONDS)) {
+                    if (lock.tryLock()) {
                         try {
                             // Update job status to PENDING
                             log.info("Job {}<<<{}>>> is marked as RUNNING but has no active lock, resetting to PENDING",
@@ -126,7 +123,9 @@ public class DisruptorWorker extends BaseDisruptorWorker {
                                     "Reset due to no active lock");
                             log.info("Job {}<<<{}>>> reset to PENDING", db.getId(), db.bidDisplay());
                         } finally {
-                            lock.unlock();
+                            if (lock.isHeldByCurrentThread()) {
+                                lock.unlock();
+                            }
                         }
                         return true;
                     }

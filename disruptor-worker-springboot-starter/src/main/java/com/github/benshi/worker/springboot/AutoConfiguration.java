@@ -1,5 +1,7 @@
 package com.github.benshi.worker.springboot;
 
+import java.util.Properties;
+
 import javax.sql.DataSource;
 
 import org.redisson.api.RedissonClient;
@@ -16,77 +18,79 @@ import com.github.benshi.worker.DisruptorWorker;
 import com.github.benshi.worker.DisruptorWorkerOptions;
 
 @Configuration
-@EnableConfigurationProperties({ WorkerProperties.class,
-        DataSourceProperties.class,
-        RedisProperties.class })
+@EnableConfigurationProperties({ WorkerProperties.class, RedisProperties.class,
+                DataSourceProperties.class })
 @Import({ CustomRedissonAutoConfiguration.class })
 @ComponentScan(basePackages = "com.iflysse.benshi.worker.springboot")
 public class AutoConfiguration {
-    @Bean(name = "workerDataSource")
-    @ConditionalOnMissingBean(DataSource.class)
-    public DataSource workDataSource(DataSourceProperties dataSourceProperties) {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName(dataSourceProperties.getDriverClassName());
-        dataSource.setUrl(dataSourceProperties.getUrl());
-        dataSource.setUsername(dataSourceProperties.getUsername());
-        dataSource.setPassword(dataSourceProperties.getPassword());
-        return dataSource;
-    }
-
-    @Bean
-    public DisruptorWorker disruptorWorker(WorkerProperties workerProperties,
-            DataSourceProperties dataSourceProperties,
-            RedissonClient redissonClient) {
-        int bufferSize = workerProperties.getBufferSize();
-        int stayDays = workerProperties.getStayDays();
-
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName(dataSourceProperties.getDriverClassName());
-        dataSource.setUrl(dataSourceProperties.getUrl());
-        dataSource.setUsername(dataSourceProperties.getUsername());
-        dataSource.setPassword(dataSourceProperties.getPassword());
-
-        DisruptorWorkerOptions options = DisruptorWorkerOptions.builder()
-                .storeName(workerProperties.getStoreDirver())
-                .bufferSize(bufferSize)
-                .stayDays(stayDays)
-                .build();
-
-        return new DisruptorWorker(
-                redissonClient,
-                dataSource,
-                options);
-    }
-
-    @Bean
-    public CacheDisruptorWorker cacheDisruptorWorker(WorkerProperties workerProperties,
-            RedissonClient redissonClient) {
-        int bufferSize = workerProperties.getBufferSize() * 1024;
-        if (bufferSize > 1024 * 1024) {
-            bufferSize = 1024 * 1024;
+        @Bean(name = "workerDataSource")
+        @ConditionalOnMissingBean(DataSource.class)
+        public DataSource workDataSource(DataSourceProperties dataSourceProperties) {
+                DriverManagerDataSource dataSource = new DriverManagerDataSource();
+                dataSource.setDriverClassName(dataSourceProperties.getDriverClassName());
+                dataSource.setUrl(dataSourceProperties.getUrl());
+                dataSource.setUsername(dataSourceProperties.getUsername());
+                dataSource.setPassword(dataSourceProperties.getPassword());
+                return dataSource;
         }
-        int stayDays = workerProperties.getStayDays();
 
-        DisruptorWorkerOptions options = DisruptorWorkerOptions.builder()
-                .storeName(workerProperties.getStoreDirver())
-                .bufferSize(bufferSize)
-                .stayDays(stayDays)
-                .build();
+        @Bean
+        public DisruptorWorker disruptorWorker(WorkerProperties workerProperties,
+                        DataSourceProperties dataSourceProperties,
+                        RedissonClient redissonClient) {
+                int bufferSize = workerProperties.getBufferSize();
+                int stayDays = workerProperties.getStayDays();
 
-        return new CacheDisruptorWorker(
-                redissonClient,
-                options);
-    }
+                DriverManagerDataSource dataSource = new DriverManagerDataSource();
+                dataSource.setDriverClassName(dataSourceProperties.getDriverClassName());
+                dataSource.setUrl(dataSourceProperties.getUrl());
+                dataSource.setUsername(dataSourceProperties.getUsername());
+                dataSource.setPassword(dataSourceProperties.getPassword());
 
-    @Bean
-    public WorkerBeanPostProcessor workerBeanPostProcessor(DisruptorWorker disruptorWorker,
-            CacheDisruptorWorker cacheDisruptorWorker) {
-        return new WorkerBeanPostProcessor(disruptorWorker, cacheDisruptorWorker);
-    }
+                Properties properties = new Properties();
+                properties.put("dataSource", dataSource);
 
-    @Bean
-    public WorkerPublisher workerPublisher(DisruptorWorker disruptorWorker,
-            CacheDisruptorWorker cacheDisruptorWorker) {
-        return new WorkerPublisher(disruptorWorker, cacheDisruptorWorker);
-    }
+                DisruptorWorkerOptions options = DisruptorWorkerOptions.builder()
+                                .storeName(workerProperties.getStoreDirver())
+                                .bufferSize(bufferSize)
+                                .stayDays(stayDays)
+                                .properties(properties)
+                                .build();
+
+                return new DisruptorWorker(
+                                redissonClient,
+                                options);
+        }
+
+        @Bean
+        public CacheDisruptorWorker cacheDisruptorWorker(WorkerProperties workerProperties,
+                        RedissonClient redissonClient) {
+                int bufferSize = workerProperties.getBufferSize() * 1024;
+                if (bufferSize > 1024 * 1024) {
+                        bufferSize = 1024 * 1024;
+                }
+                int stayDays = workerProperties.getStayDays();
+
+                DisruptorWorkerOptions options = DisruptorWorkerOptions.builder()
+                                .storeName(workerProperties.getStoreDirver())
+                                .bufferSize(bufferSize)
+                                .stayDays(stayDays)
+                                .build();
+
+                return new CacheDisruptorWorker(
+                                redissonClient,
+                                options);
+        }
+
+        @Bean
+        public WorkerBeanPostProcessor workerBeanPostProcessor(DisruptorWorker disruptorWorker,
+                        CacheDisruptorWorker cacheDisruptorWorker) {
+                return new WorkerBeanPostProcessor(disruptorWorker, cacheDisruptorWorker);
+        }
+
+        @Bean
+        public WorkerPublisher workerPublisher(DisruptorWorker disruptorWorker,
+                        CacheDisruptorWorker cacheDisruptorWorker) {
+                return new WorkerPublisher(disruptorWorker, cacheDisruptorWorker);
+        }
 }

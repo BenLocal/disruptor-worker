@@ -1,9 +1,9 @@
 package com.github.benshi.worker.store;
 
-import javax.sql.DataSource;
+import java.util.Properties;
 
 public interface WorkStoreFactory {
     String name();
 
-    WorkerStore create(DataSource dataSource);
+    WorkerStore create(Properties properties);
 }
