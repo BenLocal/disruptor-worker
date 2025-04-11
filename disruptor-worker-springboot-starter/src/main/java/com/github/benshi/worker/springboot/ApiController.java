@@ -7,14 +7,18 @@ import javax.websocket.server.PathParam;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+import com.github.benshi.worker.CacheDisruptorWorker;
 import com.github.benshi.worker.DisruptorWorker;
 import com.github.benshi.worker.WorkContext;
+import com.github.benshi.worker.springboot.vo.InnerMetricsResponse;
 import com.github.benshi.worker.springboot.vo.ListRequest;
 import com.github.benshi.worker.springboot.vo.ListResponse;
+import com.github.benshi.worker.springboot.vo.MetricsResponse;
 import com.github.benshi.worker.springboot.vo.PublishResponse;
 import com.github.benshi.worker.store.WorkerStore;
 
@@ -24,8 +28,19 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/workers")
 @RequiredArgsConstructor
 public class ApiController {
-    public final WorkerPublisher workerPublisher;
-    public final DisruptorWorker worker;
+    private final WorkerPublisher workerPublisher;
+    private final DisruptorWorker worker;
+    private final CacheDisruptorWorker cacheWorker;
+
+    @GetMapping("/metrics")
+    public ResponseEntity<MetricsResponse> metrics() {
+        MetricsResponse response = new MetricsResponse()
+                .setDb(new InnerMetricsResponse()
+                        .setRingBuffer(worker.getRingBufferMetrics()))
+                .setCache(new InnerMetricsResponse()
+                        .setRingBuffer(cacheWorker.getRingBufferMetrics()));
+        return ResponseEntity.ok(response);
+    }
 
     @PostMapping("/publish/{id}")
     public ResponseEntity<PublishResponse> publish(@PathParam("id") long id) {

@@ -7,3 +7,7 @@ Content-Type: application/json
     "size": 10,
     "filter": ""
 }
+
+
+### metrics
+GET http://localhost:8080/workers/metrics HTTP/1.1

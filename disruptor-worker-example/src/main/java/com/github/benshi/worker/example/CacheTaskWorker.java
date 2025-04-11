@@ -22,8 +22,8 @@ public class CacheTaskWorker implements WorkerHandler {
     @Override
     public WorkHandlerResult run(WorkHandlerMessage msg) throws Exception {
         try {
-            System.out.println("CacheTaskWorker: " + msg);
-            Thread.sleep(2000); // simulate work
+            // System.out.println("CacheTaskWorker: " + msg);
+            Thread.sleep(50000); // simulate work
             System.out.println("CacheTaskWorker: " + msg + " done");
             return WorkHandlerResult.success();
         } catch (Exception e) {
@@ -38,7 +38,7 @@ public class CacheTaskWorker implements WorkerHandler {
     public void job1() {
         long a = count.incrementAndGet();
         workerPublisher.publish(
-                CacheTaskWorker.class, "cache job", String.valueOf(a),
+                CacheTaskWorker.class, "cache job" + a, String.valueOf(a),
                 true);
     }
 

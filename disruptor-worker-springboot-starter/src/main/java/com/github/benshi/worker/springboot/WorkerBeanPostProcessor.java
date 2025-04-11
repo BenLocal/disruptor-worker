@@ -55,7 +55,7 @@ public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingB
         int limit = aw.limit();
 
         if (aw.cache()) {
-            cacheWorker.register(handlerId, (WorkerHandler) bean, limit);
+            this.cacheWorker.register(handlerId, (WorkerHandler) bean, limit);
         } else {
             this.worker.register(handlerId, (WorkerHandler) bean, limit);
         }
@@ -67,13 +67,17 @@ public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingB
         // Start the DisruptorWorker when Spring context is initialized
         log.info("Starting DisruptorWorker...");
         try {
-            this.worker.start();
+            if (this.worker.registerCount() > 0) {
+                this.worker.start();
+            }
         } catch (Exception e) {
             // ignore the exception
         }
 
         try {
-            this.cacheWorker.start();
+            if (this.cacheWorker.registerCount() > 0) {
+                this.cacheWorker.start();
+            }
         } catch (Exception e) {
             // ignore the exception
         }
@@ -86,13 +90,17 @@ public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingB
         // Shutdown the DisruptorWorker when Spring context is closed
         log.info("Shutting down DisruptorWorker...");
         try {
-            this.worker.shutdown();
+            if (this.worker.registerCount() > 0) {
+                this.worker.shutdown();
+            }
         } catch (Exception e) {
             // ignore the exception
         }
 
         try {
-            this.cacheWorker.shutdown();
+            if (this.cacheWorker.registerCount() > 0) {
+                this.cacheWorker.shutdown();
+            }
         } catch (Exception e) {
             // ignore the exception
         }

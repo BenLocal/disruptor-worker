@@ -19,6 +19,7 @@ public class DisruptorWorkerOptions {
     private int coreSize;
     private int maxSize;
     private Properties properties;
+    private boolean dynamicWorker;
 
     // Get available CPU cores
     private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();

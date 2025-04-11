@@ -12,4 +12,10 @@ public class WorkerProperties {
     private int stayDays = 7;
 
     private String storeDirver = "mysql-jdbc";
+
+    private boolean dynamic = false;
+
+    private int coreSize = 0;
+
+    private int maxSize = 0;
 }

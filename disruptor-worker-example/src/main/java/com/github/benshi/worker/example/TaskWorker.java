@@ -8,14 +8,13 @@ import org.springframework.stereotype.Component;
 import com.github.benshi.worker.WorkHandlerMessage;
 import com.github.benshi.worker.WorkHandlerResult;
 import com.github.benshi.worker.WorkerHandler;
-import com.github.benshi.worker.springboot.Worker;
 import com.github.benshi.worker.springboot.WorkerPublisher;
 
 import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-@Worker(limit = 2)
+// @Worker(limit = 2)
 public class TaskWorker implements WorkerHandler {
     private final WorkerPublisher workerPublisher;
 
