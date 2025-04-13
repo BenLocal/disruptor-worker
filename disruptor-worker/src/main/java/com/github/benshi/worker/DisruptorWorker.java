@@ -212,7 +212,11 @@ public class DisruptorWorker extends BaseDisruptorWorker {
                 }
 
                 // Add to ring buffer for processing
-                long sequence = ringBuffer.next();
+                long sequence = ringBuffer.tryNext();
+                if (sequence < 0) {
+                    log.warn("Failed to get sequence from ring buffer");
+                    continue;
+                }
                 try {
                     // Increment the count
                     limitsManager.incrementCount(ctx.getHandlerId());
