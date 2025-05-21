@@ -2,8 +2,9 @@ package com.github.benshi.worker.springboot;
 
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.DisposableBean;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextRefreshedEvent;
 
 import com.github.benshi.worker.CacheDisruptorWorker;
 import com.github.benshi.worker.DisruptorWorker;
@@ -14,13 +15,13 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingBean, DisposableBean {
+public class WorkerBeanPostProcessor
+        implements BeanPostProcessor, ApplicationListener<ContextRefreshedEvent>, DisposableBean {
     private final DisruptorWorker worker;
     private final CacheDisruptorWorker cacheWorker;
 
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
-
         if (bean != null) {
             selectWorkerAnnotation(bean);
         }
@@ -63,7 +64,7 @@ public class WorkerBeanPostProcessor implements BeanPostProcessor, InitializingB
     }
 
     @Override
-    public void afterPropertiesSet() throws Exception {
+    public void onApplicationEvent(ContextRefreshedEvent event) {
         // Start the DisruptorWorker when Spring context is initialized
         log.info("Starting DisruptorWorker...");
         try {
