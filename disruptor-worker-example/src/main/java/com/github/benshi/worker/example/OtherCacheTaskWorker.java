@@ -15,14 +15,14 @@ import lombok.RequiredArgsConstructor;
 
 @Component
 @RequiredArgsConstructor
-@Worker(cache = true, limit = 2)
-public class CacheTaskWorker implements WorkerHandler {
+@Worker(cache = true)
+public class OtherCacheTaskWorker implements WorkerHandler {
     private final WorkerPublisher workerPublisher;
 
     @Override
     public WorkHandlerResult run(WorkHandlerMessage msg) throws Exception {
         try {
-            Thread.sleep(5000); // simulate work
+            Thread.sleep(1000); // simulate work
             return WorkHandlerResult.success();
         } catch (Exception e) {
             e.printStackTrace();
@@ -35,13 +35,12 @@ public class CacheTaskWorker implements WorkerHandler {
     @Scheduled(fixedRate = 1000)
     public void job1() {
         long a = count.incrementAndGet();
-        String key = "cache job" + a;
+        String key = "other cache job" + a;
         if (!workerPublisher.publish(
-                CacheTaskWorker.class, key, String.valueOf(a),
+                OtherCacheTaskWorker.class, key, String.valueOf(a),
                 true)) {
             // Handle failure
             System.out.println("Failed to publish job: " + key);
         }
     }
-
 }

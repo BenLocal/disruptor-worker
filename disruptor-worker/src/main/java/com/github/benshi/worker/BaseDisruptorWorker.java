@@ -82,7 +82,9 @@ public abstract class BaseDisruptorWorker {
                     workSequence);
             this.executor.execute(wp);
             this.workProcessors.put(i, wp);
+            this.ringBuffer.addGatingSequences(wp.getSequence());
         }
+        this.ringBuffer.addGatingSequences(workSequence);
 
         if (options.isDynamicWorker()) {
             this.maxAdditionalWorkers = options.getMaxSize() - options.getCoreSize();

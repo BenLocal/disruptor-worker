@@ -14,6 +14,7 @@ import com.github.benshi.worker.cache.LocalLimitsManager;
 import com.github.benshi.worker.handler.StoreDisruptorHandler;
 import com.github.benshi.worker.store.WorkerStore;
 import com.github.benshi.worker.store.WorkerStoreProcessor;
+import com.lmax.disruptor.InsufficientCapacityException;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -194,8 +195,7 @@ public class DisruptorWorker extends BaseDisruptorWorker {
                 }
 
                 // Check ring buffer capacity
-                if (ringBuffer.remainingCapacity() <= 1) {
-                    log.warn("Ring buffer capacity too low: {}", ringBuffer.remainingCapacity());
+                if (ringBuffer.remainingCapacity() <= 0) {
                     // Stop processing more jobs
                     break;
                 }
@@ -212,21 +212,25 @@ public class DisruptorWorker extends BaseDisruptorWorker {
                 }
 
                 // Add to ring buffer for processing
-                long sequence = ringBuffer.tryNext();
-                if (sequence < 0) {
-                    log.warn("Failed to get sequence from ring buffer");
-                    continue;
-                }
                 try {
-                    // Increment the count
-                    limitsManager.incrementCount(ctx.getHandlerId());
+                    long sequence = ringBuffer.tryNext();
+                    if (sequence < 0) {
+                        log.warn("Failed to get sequence from ring buffer");
+                        continue;
+                    }
+                    try {
+                        // Increment the count
+                        limitsManager.incrementCount(ctx.getHandlerId());
 
-                    WorkerHandlerEvent event = ringBuffer.get(sequence);
-                    event.setCtx(ctx);
-                    event.setHandler(handler);
-                    log.debug("Job {} added to ring buffer for processing", ctx.getId());
-                } finally {
-                    ringBuffer.publish(sequence);
+                        WorkerHandlerEvent event = ringBuffer.get(sequence);
+                        event.setCtx(ctx);
+                        event.setHandler(handler);
+                        log.debug("Job {} added to ring buffer for processing", ctx.getId());
+                    } finally {
+                        ringBuffer.publish(sequence);
+                    }
+                } catch (InsufficientCapacityException e) {
+                    continue;
                 }
             }
         } catch (Exception e) {
