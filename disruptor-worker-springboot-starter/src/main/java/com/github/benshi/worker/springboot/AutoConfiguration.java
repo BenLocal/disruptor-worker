@@ -2,10 +2,7 @@ package com.github.benshi.worker.springboot;
 
 import java.util.Properties;
 
-import javax.sql.DataSource;
-
 import org.redisson.api.RedissonClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -23,17 +20,6 @@ import com.github.benshi.worker.DisruptorWorkerOptions;
 @Import({ CustomRedissonAutoConfiguration.class })
 @ComponentScan(basePackages = "com.github.benshi.worker.springboot")
 public class AutoConfiguration {
-    @Bean(name = "workerDataSource")
-    @ConditionalOnMissingBean(DataSource.class)
-    public DataSource workDataSource(DataSourceProperties dataSourceProperties) {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName(dataSourceProperties.getDriverClassName());
-        dataSource.setUrl(dataSourceProperties.getUrl());
-        dataSource.setUsername(dataSourceProperties.getUsername());
-        dataSource.setPassword(dataSourceProperties.getPassword());
-        return dataSource;
-    }
-
     @Bean
     public DisruptorWorker disruptorWorker(WorkerProperties workerProperties,
             DataSourceProperties dataSourceProperties,
@@ -68,11 +54,10 @@ public class AutoConfiguration {
     @Bean
     public CacheDisruptorWorker cacheDisruptorWorker(WorkerProperties workerProperties,
             RedissonClient redissonClient) {
-        // int bufferSize = workerProperties.getBufferSize() * 1024;
-        // if (bufferSize > 1024 * 1024) {
-        // bufferSize = 1024 * 1024;
-        // }
         int bufferSize = workerProperties.getBufferSize();
+        if (bufferSize > 1024 * 1024) {
+            bufferSize = 1024 * 1024;
+        }
         int stayDays = workerProperties.getStayDays();
 
         DisruptorWorkerOptions options = DisruptorWorkerOptions.builder()
