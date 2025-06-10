@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS worker_jobs (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     retry_at TIMESTAMP NULL,
     retry_interval_seconds INT NOT NULL DEFAULT 3600,
+    lock_str VARCHAR(64) NULL,
 
     INDEX idx_status_created (status, created_at),
     INDEX idx_handler_status (handler_id, status),

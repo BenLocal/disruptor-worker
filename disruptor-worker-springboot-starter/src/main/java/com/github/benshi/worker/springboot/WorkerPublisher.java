@@ -45,17 +45,26 @@ public class WorkerPublisher {
         if (aw != null) {
             cache = aw.cache();
         }
-        return publish(handlerId, cache, workerId, payload, froce);
+        return publish(new WorkerPublishOptions()
+                .setHandlerId(handlerId)
+                .setWorkId(workerId)
+                .setPayload(payload)
+                .setForce(froce)
+                .setCache(cache));
     }
 
-    public boolean publish(String handlerId, boolean cache, String workerId, String payload, boolean froce) {
+    public boolean publish(WorkerPublishOptions options) {
+        if (options == null || options.getHandlerId() == null || options.getWorkId() == null) {
+            return false;
+        }
         WorkContext ctx = new WorkContext()
-                .setWorkId(workerId)
-                .setHandlerId(handlerId)
-                .setPayload(payload)
-                .setForce(froce);
+                .setWorkId(options.getWorkId())
+                .setHandlerId(options.getHandlerId())
+                .setPayload(options.getPayload())
+                .setForce(options.isForce())
+                .setLockStr(options.getLockStr());
 
-        if (cache) {
+        if (options.isCache()) {
             return cacheWorker.submit(ctx);
         } else {
             return worker.submit(ctx);

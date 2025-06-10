@@ -36,7 +36,7 @@ public class MysqlWorkerStore implements WorkerStore {
 
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "INSERT INTO worker_jobs (work_id, handler_id, payload, status, created_at, updated_at, max_retry_count, retry_interval_seconds) VALUES (?, ?, ?, ?, NOW(), NOW(), ?, ?)")) {
+                        "INSERT INTO worker_jobs (work_id, handler_id, payload, status, created_at, updated_at, max_retry_count, retry_interval_seconds, lock_str) VALUES (?, ?, ?, ?, NOW(), NOW(), ?, ?, ?)")) {
 
             stmt.setString(1, ctx.getWorkId());
             stmt.setString(2, ctx.getHandlerId());
@@ -44,6 +44,7 @@ public class MysqlWorkerStore implements WorkerStore {
             stmt.setString(4, WorkerStatus.PENDING.name());
             stmt.setInt(5, ctx.getMaxRetryCount());
             stmt.setInt(6, ctx.getRetryIntervalSeconds());
+            stmt.setString(7, ctx.getLockStr());
             int rows = stmt.executeUpdate();
             return rows > 0;
         }
@@ -54,7 +55,7 @@ public class MysqlWorkerStore implements WorkerStore {
     public List<WorkContext> getWorkersByStatus(WorkerStatus status, int limit) throws Exception {
         List<WorkContext> jobs = new ArrayList<>();
         String us = "SELECT id, work_id, handler_id, payload, retry_count," +
-                " status, max_retry_count,retry_interval_seconds " +
+                " status, max_retry_count,retry_interval_seconds,lock_str " +
                 "FROM worker_jobs " +
                 "WHERE status = ? ";
 
@@ -81,6 +82,7 @@ public class MysqlWorkerStore implements WorkerStore {
                     ctx.setRetryCount(rs.getInt("retry_count"));
                     ctx.setMaxRetryCount(rs.getInt("max_retry_count"));
                     ctx.setRetryIntervalSeconds(rs.getInt("retry_interval_seconds"));
+                    ctx.setLockStr(rs.getString("lock_str"));
                     jobs.add(ctx);
                 }
             }
@@ -119,7 +121,7 @@ public class MysqlWorkerStore implements WorkerStore {
     public WorkContext getWorkerById(long id) throws Exception {
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT id, work_id, handler_id, payload, retry_count, status, max_retry_count, retry_interval_seconds "
+                        "SELECT id, work_id, handler_id, payload, retry_count, status, max_retry_count, retry_interval_seconds,lock_str "
                                 +
                                 "FROM worker_jobs " +
                                 "WHERE id = ? ")) {
@@ -138,6 +140,7 @@ public class MysqlWorkerStore implements WorkerStore {
                     ctx.setRetryCount(rs.getInt("retry_count"));
                     ctx.setMaxRetryCount(rs.getInt("max_retry_count"));
                     ctx.setRetryIntervalSeconds(rs.getInt("retry_interval_seconds"));
+                    ctx.setLockStr(rs.getString("lock_str"));
                 } else {
                     return null;
                 }
@@ -170,7 +173,7 @@ public class MysqlWorkerStore implements WorkerStore {
 
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT id, work_id, handler_id, payload, retry_count, status, max_retry_count, retry_interval_seconds "
+                        "SELECT id, work_id, handler_id, payload, retry_count, status, max_retry_count, retry_interval_seconds,lock_str "
                                 +
                                 "FROM worker_jobs " +
                                 "WHERE work_id = ? AND handler_id = ? ")) {
@@ -190,6 +193,7 @@ public class MysqlWorkerStore implements WorkerStore {
                     ctx.setRetryCount(rs.getInt("retry_count"));
                     ctx.setMaxRetryCount(rs.getInt("max_retry_count"));
                     ctx.setRetryIntervalSeconds(rs.getInt("retry_interval_seconds"));
+                    ctx.setLockStr(rs.getString("lock_str"));
                 } else {
                     return null;
                 }
@@ -207,7 +211,7 @@ public class MysqlWorkerStore implements WorkerStore {
         }
         try (Connection conn = dataSource.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT id, work_id, handler_id, payload, retry_count, status, max_retry_count, retry_interval_seconds "
+                        "SELECT id, work_id, handler_id, payload, retry_count, status, max_retry_count, retry_interval_seconds,lock_str "
                                 +
                                 "FROM worker_jobs " +
                                 "WHERE work_id LIKE ? " +
@@ -229,6 +233,7 @@ public class MysqlWorkerStore implements WorkerStore {
                     ctx.setRetryCount(rs.getInt("retry_count"));
                     ctx.setMaxRetryCount(rs.getInt("max_retry_count"));
                     ctx.setRetryIntervalSeconds(rs.getInt("retry_interval_seconds"));
+                    ctx.setLockStr(rs.getString("lock_str"));
                     jobs.add(ctx);
                 }
             }

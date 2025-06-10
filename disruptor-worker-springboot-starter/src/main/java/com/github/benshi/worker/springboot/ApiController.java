@@ -53,7 +53,13 @@ public class ApiController {
                         .setMessage("worker not found"));
             }
 
-            workerPublisher.publish(ctx.getHandlerId(), false, ctx.getWorkId(), ctx.getPayload(), true);
+            workerPublisher.publish(new WorkerPublishOptions()
+                    .setCache(false)
+                    .setHandlerId(ctx.getHandlerId())
+                    .setWorkId(ctx.getWorkId())
+                    .setPayload(ctx.getPayload())
+                    .setForce(ctx.isForce())
+                    .setLockStr(ctx.getLockStr()));
             return ResponseEntity.ok(new PublishResponse()
                     .setStatus(true));
         } catch (Exception e) {
