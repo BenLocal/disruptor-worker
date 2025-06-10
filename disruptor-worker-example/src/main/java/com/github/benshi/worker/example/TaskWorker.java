@@ -9,6 +9,7 @@ import com.github.benshi.worker.WorkHandlerMessage;
 import com.github.benshi.worker.WorkHandlerResult;
 import com.github.benshi.worker.WorkerHandler;
 import com.github.benshi.worker.springboot.Worker;
+import com.github.benshi.worker.springboot.WorkerPublishOptions;
 import com.github.benshi.worker.springboot.WorkerPublisher;
 
 import lombok.RequiredArgsConstructor;
@@ -34,10 +35,15 @@ public class TaskWorker implements WorkerHandler {
 
     private final AtomicLong count = new AtomicLong(0);
 
-    @Scheduled(fixedRate = 19000)
+    @Scheduled(fixedRate = 15000)
     public void job1() {
         long a = count.incrementAndGet();
-        workerPublisher.publish(TaskWorker.class, "job1" + a, String.valueOf(a),
-                true);
+        if (!workerPublisher.publish(TaskWorker.class, new WorkerPublishOptions()
+                .setWorkId("task" + a)
+                .setPayload("payload" + a)
+                .setLockStr("aaa"))) {
+            // Handle failure
+            System.out.println("Failed to publish job: " + "task" + a);
+        }
     }
 }

@@ -34,23 +34,24 @@ public class WorkerPublisher {
         return publish(clazz, workerId, payload, false);
     }
 
-    public boolean publish(
-            Class<? extends WorkerHandler> clazz, String workerId, String payload, boolean froce) {
-        if (worker == null) {
-            return false;
-        }
+    public boolean publish(Class<? extends WorkerHandler> clazz, WorkerPublishOptions options) {
         String handlerId = clazz.getName();
         Worker aw = clazz.getAnnotation(Worker.class);
         boolean cache = false;
         if (aw != null) {
             cache = aw.cache();
         }
-        return publish(new WorkerPublishOptions()
+        return publish(options
                 .setHandlerId(handlerId)
+                .setCache(cache));
+    }
+
+    public boolean publish(
+            Class<? extends WorkerHandler> clazz, String workerId, String payload, boolean froce) {
+        return publish(clazz, new WorkerPublishOptions()
                 .setWorkId(workerId)
                 .setPayload(payload)
-                .setForce(froce)
-                .setCache(cache));
+                .setForce(froce));
     }
 
     public boolean publish(WorkerPublishOptions options) {
