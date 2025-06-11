@@ -5,6 +5,7 @@ import org.redisson.api.RedissonClient;
 
 import com.github.benshi.worker.WorkContext;
 import com.github.benshi.worker.WorkHandlerMessage;
+import com.github.benshi.worker.WorkHandlerResult;
 import com.github.benshi.worker.WorkerHandlerEvent;
 import com.github.benshi.worker.WorkerStatus;
 import com.github.benshi.worker.cache.LimitsManager;
@@ -43,17 +44,14 @@ public class StoreDisruptorHandler extends BaseDisruptorHandler {
                         }
                         current = WorkerStatus.RUNNING;
 
-                        event.getHandler().run(new WorkHandlerMessage(ctx.getId(),
+                        WorkHandlerResult result = event.getHandler().run(new WorkHandlerMessage(ctx.getId(),
                                 ctx.getWorkId(), ctx.getPayload()));
 
                         // Update job as completed in database
-                        if (!workerStore.updateWorkerStatus(ctx.getId(), WorkerStatus.COMPLETED, WorkerStatus.RUNNING,
-                                null)) {
-                            log.warn("Job {} already completed", ctx.getId());
-                            return;
-                        }
-                        current = WorkerStatus.COMPLETED;
-                        log.info("Job {} completed successfully", ctx.getId());
+                        current = updateJobStatus(ctx, result, current);
+                        log.info("Job handlerId ({}), workerId ({}) completed successfully, result: {}",
+                                ctx.getHandlerId(),
+                                ctx.getWorkId(), result == null ? "NULL" : result.display());
                     } finally {
                         if (lock.isHeldByCurrentThread()) {
                             lock.unlock();
@@ -96,6 +94,34 @@ public class StoreDisruptorHandler extends BaseDisruptorHandler {
                 }
             }
         }
+    }
+
+    private WorkerStatus updateJobStatus(WorkContext ctx, WorkHandlerResult result, WorkerStatus current)
+            throws Exception {
+        WorkerStatus nextStatus = null;
+        if (result == null || result.isSuccess()) {
+            nextStatus = WorkerStatus.COMPLETED;
+        } else if (result.isRetry()) {
+            if (ctx.getMaxRetryCount() <= 0) {
+                nextStatus = WorkerStatus.FAILED_PERMANENT;
+            } else if (ctx.getRetryCount() < ctx.getMaxRetryCount()) {
+                nextStatus = WorkerStatus.RETRY;
+            } else {
+                nextStatus = WorkerStatus.FAILED;
+            }
+        } else {
+            nextStatus = WorkerStatus.FAILED;
+        }
+
+        if (nextStatus == null || nextStatus == current) {
+            return current;
+        }
+
+        if (workerStore.updateWorkerStatus(ctx.getId(), nextStatus, current, null)) {
+            return nextStatus;
+        }
+
+        return current;
     }
 
     @Override

@@ -65,6 +65,11 @@ public class WorkerPublisher {
                 .setForce(options.isForce())
                 .setLockStr(options.getLockStr());
 
+        if (options.getRetryMaxCount() > 0 && options.getRetryIntervalSeconds() > 0) {
+            ctx.setMaxRetryCount(options.getRetryMaxCount())
+                    .setRetryIntervalSeconds(options.getRetryIntervalSeconds());
+        }
+
         if (options.isCache()) {
             return cacheWorker.submit(ctx);
         } else {

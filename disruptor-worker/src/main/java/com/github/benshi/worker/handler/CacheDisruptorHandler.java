@@ -5,6 +5,7 @@ import org.redisson.api.RedissonClient;
 
 import com.github.benshi.worker.WorkContext;
 import com.github.benshi.worker.WorkHandlerMessage;
+import com.github.benshi.worker.WorkHandlerResult;
 import com.github.benshi.worker.WorkerHandlerEvent;
 import com.github.benshi.worker.cache.LimitsManager;
 
@@ -29,10 +30,10 @@ public class CacheDisruptorHandler extends BaseDisruptorHandler {
             // use lock with watchdog to prevent deadlock
             if (lock.tryLock()) {
                 try {
-                    event.getHandler().run(new WorkHandlerMessage(ctx.getId(),
+                    WorkHandlerResult result = event.getHandler().run(new WorkHandlerMessage(ctx.getId(),
                             ctx.getWorkId(), ctx.getPayload()));
-                    log.info("Job handlerId ({}), workerId ({}) completed successfully", ctx.getHandlerId(),
-                            ctx.getWorkId());
+                    log.info("Job handlerId ({}), workerId ({}) completed successfully, result: {}", ctx.getHandlerId(),
+                            ctx.getWorkId(), result == null ? "NULL" : result.display());
                 } finally {
                     if (lock.isHeldByCurrentThread()) {
                         // unlock the lock after processing

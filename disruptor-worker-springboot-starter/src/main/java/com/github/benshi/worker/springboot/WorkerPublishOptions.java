@@ -27,4 +27,8 @@ public class WorkerPublishOptions {
     // lock字符串
     // 如果不设置，则使用默认的workId
     private String lockStr = "";
+    // 最大重试次数
+    private int retryMaxCount = 0;
+    // 重试间隔，单位秒
+    private int retryIntervalSeconds = 0;
 }

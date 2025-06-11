@@ -24,9 +24,9 @@ public class TaskWorker implements WorkerHandler {
     public WorkHandlerResult run(WorkHandlerMessage msg) throws Exception {
         try {
             System.out.println("TaskWorker: " + msg);
-            Thread.sleep(20000); // simulate work
+            Thread.sleep(5000); // simulate work
             System.out.println("TaskWorker: " + msg + " done");
-            return WorkHandlerResult.success();
+            return WorkHandlerResult.retry();
         } catch (Exception e) {
             e.printStackTrace();
             return WorkHandlerResult.failure();
@@ -41,7 +41,9 @@ public class TaskWorker implements WorkerHandler {
         if (!workerPublisher.publish(TaskWorker.class, new WorkerPublishOptions()
                 .setWorkId("task" + a)
                 .setPayload("payload" + a)
-                .setLockStr("aaa"))) {
+                .setLockStr("aaa")
+                .setRetryMaxCount(2)
+                .setRetryIntervalSeconds(5))) {
             // Handle failure
             System.out.println("Failed to publish job: " + "task" + a);
         }
