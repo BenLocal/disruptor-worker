@@ -3,6 +3,7 @@ package com.github.benshi.worker.springboot;
 import com.github.benshi.worker.CacheDisruptorWorker;
 import com.github.benshi.worker.DisruptorWorker;
 import com.github.benshi.worker.JsonUtils;
+import com.github.benshi.worker.PublishResult;
 import com.github.benshi.worker.WorkContext;
 import com.github.benshi.worker.WorkerHandler;
 
@@ -13,11 +14,11 @@ public class WorkerPublisher {
     private final DisruptorWorker worker;
     private final CacheDisruptorWorker cacheWorker;
 
-    public boolean publish(Class<? extends WorkerHandler> clazz, String workerId, Object payload) {
+    public PublishResult publish(Class<? extends WorkerHandler> clazz, String workerId, Object payload) {
         return publish(clazz, workerId, payload, false);
     }
 
-    public boolean publish(Class<? extends WorkerHandler> clazz, String workerId, Object payload, boolean froce) {
+    public PublishResult publish(Class<? extends WorkerHandler> clazz, String workerId, Object payload, boolean froce) {
         String s = null;
         if (payload != null) {
             if (payload instanceof String) {
@@ -30,11 +31,11 @@ public class WorkerPublisher {
         return publish(clazz, workerId, s, froce);
     }
 
-    public boolean publish(Class<? extends WorkerHandler> clazz, String workerId, String payload) {
+    public PublishResult publish(Class<? extends WorkerHandler> clazz, String workerId, String payload) {
         return publish(clazz, workerId, payload, false);
     }
 
-    public boolean publish(Class<? extends WorkerHandler> clazz, WorkerPublishOptions options) {
+    public PublishResult publish(Class<? extends WorkerHandler> clazz, WorkerPublishOptions options) {
         String handlerId = clazz.getName();
         Worker aw = clazz.getAnnotation(Worker.class);
         boolean cache = false;
@@ -46,7 +47,7 @@ public class WorkerPublisher {
                 .setCache(cache));
     }
 
-    public boolean publish(
+    public PublishResult publish(
             Class<? extends WorkerHandler> clazz, String workerId, String payload, boolean froce) {
         return publish(clazz, new WorkerPublishOptions()
                 .setWorkId(workerId)
@@ -54,9 +55,9 @@ public class WorkerPublisher {
                 .setForce(froce));
     }
 
-    public boolean publish(WorkerPublishOptions options) {
+    public PublishResult publish(WorkerPublishOptions options) {
         if (options == null || options.getHandlerId() == null || options.getWorkId() == null) {
-            return false;
+            return PublishResult.ARGS_ERROR;
         }
         WorkContext ctx = new WorkContext()
                 .setWorkId(options.getWorkId())

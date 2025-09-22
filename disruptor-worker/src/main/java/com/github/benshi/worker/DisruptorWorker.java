@@ -102,9 +102,9 @@ public class DisruptorWorker extends BaseDisruptorWorker {
     }
 
     @Override
-    public boolean submit(WorkContext ctx) {
+    public PublishResult submit(WorkContext ctx) {
         if (ctx == null || ctx.getHandlerId() == null) {
-            return false;
+            return PublishResult.ARGS_ERROR;
         }
 
         try {
@@ -128,14 +128,14 @@ public class DisruptorWorker extends BaseDisruptorWorker {
                                 lock.unlock();
                             }
                         }
-                        return true;
+                        return PublishResult.SUCCESS;
                     }
                 }
             }
 
             if (!workerStore.saveWorker(ctx)) {
                 log.error("Error saving job to database: {}", ctx.bidDisplay());
-                return false;
+                return PublishResult.STORE_ERROR;
             }
         } catch (Exception e) {
             if (e instanceof SQLIntegrityConstraintViolationException) {
@@ -143,10 +143,10 @@ public class DisruptorWorker extends BaseDisruptorWorker {
             } else {
                 log.error("Error saving job to database: {}", ctx.bidDisplay(), e);
             }
-            return false;
+            return PublishResult.EXCEPTION;
         }
 
-        return true;
+        return PublishResult.SUCCESS;
 
     }
 
@@ -220,7 +220,7 @@ public class DisruptorWorker extends BaseDisruptorWorker {
                     }
                     try {
                         // Increment the count
-                        limitsManager.incrementCount(ctx.getHandlerId());
+                        // limitsManager.incrementCount(ctx.getHandlerId());
 
                         WorkerHandlerEvent event = ringBuffer.get(sequence);
                         event.setCtx(ctx);

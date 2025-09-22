@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import com.github.benshi.worker.PublishResult;
 import com.github.benshi.worker.WorkHandlerMessage;
 import com.github.benshi.worker.WorkHandlerResult;
 import com.github.benshi.worker.WorkerHandler;
@@ -36,9 +37,10 @@ public class CacheTaskWorker implements WorkerHandler {
     public void job1() {
         long a = count.incrementAndGet();
         String key = "cache job" + a;
-        if (!workerPublisher.publish(
+        PublishResult res = workerPublisher.publish(
                 CacheTaskWorker.class, key, String.valueOf(a),
-                true)) {
+                true);
+        if (!res.isSuccess()) {
             // Handle failure
             System.out.println("Failed to publish job: " + key);
         }

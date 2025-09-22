@@ -25,6 +25,10 @@ public class CacheDisruptorHandler extends BaseDisruptorHandler {
         }
 
         WorkContext ctx = event.getCtx();
+        // Increment the count
+        if (ctx.getHandlerId() != null) {
+            limitsManager.incrementCount(ctx.getHandlerId());
+        }
         try {
             RLock lock = redissonClient.getLock(ctx.lockKey());
             // use lock with watchdog to prevent deadlock

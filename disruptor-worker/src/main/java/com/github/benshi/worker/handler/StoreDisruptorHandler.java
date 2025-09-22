@@ -30,6 +30,10 @@ public class StoreDisruptorHandler extends BaseDisruptorHandler {
 
             WorkContext ctx = event.getCtx();
             WorkerStatus current = ctx.getCurrentStatus();
+            // Increment the count
+            if (ctx.getHandlerId() != null) {
+                limitsManager.incrementCount(ctx.getHandlerId());
+            }
             try {
                 RLock lock = redissonClient.getLock(ctx.lockKey());
                 if (lock.tryLock()) {

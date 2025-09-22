@@ -27,22 +27,22 @@ public class CacheDisruptorWorker extends BaseDisruptorWorker {
     }
 
     @Override
-    public boolean submit(WorkContext ctx) {
+    public PublishResult submit(WorkContext ctx) {
         if (ctx == null || ctx.getHandlerId() == null) {
-            return false;
+            return PublishResult.ARGS_ERROR;
         }
 
         try {
             WorkerHandler handler = jobHandlers.get(ctx.getHandlerId());
             if (handler == null) {
                 log.debug("No handler found for job {}, handlerId: {}", ctx.getId(), ctx.getHandlerId());
-                return false;
+                return PublishResult.HANDLER_NULL;
             }
 
             // Check ring buffer capacity
             if (ringBuffer.remainingCapacity() <= 0) {
                 // Stop processing more jobs
-                return false;
+                return PublishResult.CAPACITY_FULL;
             }
 
             // Check handler limit
@@ -52,14 +52,14 @@ public class CacheDisruptorWorker extends BaseDisruptorWorker {
                 if (currentCount >= limit) {
                     log.debug("Job limit reached for handler {}: {} >= {}", ctx.getHandlerId(), currentCount,
                             limit);
-                    return false;
+                    return PublishResult.LIMIT_REACHED;
                 }
             }
 
             RLock lock = redissonClient.getLock(ctx.lockKey());
             if (lock.isLocked() && !lock.isHeldByCurrentThread()) {
                 // Job is still running, skip
-                return false;
+                return PublishResult.LOCKED;
             }
 
             // Add to ring buffer for processing
@@ -67,11 +67,11 @@ public class CacheDisruptorWorker extends BaseDisruptorWorker {
                 long sequence = ringBuffer.tryNext();
                 if (sequence < 0) {
                     log.warn("Failed to get sequence from ring buffer");
-                    return false;
+                    return PublishResult.CAPACITY_FULL;
                 }
                 try {
                     // Increment the count
-                    limitsManager.incrementCount(ctx.getHandlerId());
+                    // limitsManager.incrementCount(ctx.getHandlerId());
 
                     WorkerHandlerEvent event = ringBuffer.get(sequence);
                     event.setCtx(ctx);
@@ -81,14 +81,14 @@ public class CacheDisruptorWorker extends BaseDisruptorWorker {
                     ringBuffer.publish(sequence);
                 }
             } catch (InsufficientCapacityException e) {
-                return false;
+                return PublishResult.EXCEPTION;
             }
         } catch (Exception e) {
             log.error("Error submitting job {} to ring buffer", ctx.getId(), e);
-            return false;
+            return PublishResult.EXCEPTION;
         }
 
-        return true;
+        return PublishResult.SUCCESS;
     }
 
 }

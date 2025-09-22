@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import com.github.benshi.worker.PublishResult;
 import com.github.benshi.worker.WorkHandlerMessage;
 import com.github.benshi.worker.WorkHandlerResult;
 import com.github.benshi.worker.WorkerHandler;
@@ -14,7 +15,7 @@ import com.github.benshi.worker.springboot.WorkerPublisher;
 
 import lombok.RequiredArgsConstructor;
 
-@Component
+// @Component
 @RequiredArgsConstructor
 @Worker
 public class TaskWorker implements WorkerHandler {
@@ -38,12 +39,13 @@ public class TaskWorker implements WorkerHandler {
     @Scheduled(fixedRate = 15000)
     public void job1() {
         long a = count.incrementAndGet();
-        if (!workerPublisher.publish(TaskWorker.class, new WorkerPublishOptions()
+        PublishResult res = workerPublisher.publish(TaskWorker.class, new WorkerPublishOptions()
                 .setWorkId("task" + a)
                 .setPayload("payload" + a)
                 .setLockStr("aaa")
                 .setRetryMaxCount(2)
-                .setRetryIntervalSeconds(5))) {
+                .setRetryIntervalSeconds(5));
+        if (!res.isSuccess()) {
             // Handle failure
             System.out.println("Failed to publish job: " + "task" + a);
         }

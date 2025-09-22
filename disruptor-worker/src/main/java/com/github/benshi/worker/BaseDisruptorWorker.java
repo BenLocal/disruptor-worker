@@ -207,5 +207,5 @@ public abstract class BaseDisruptorWorker {
         }
     }
 
-    public abstract boolean submit(WorkContext ctx);
+    public abstract PublishResult submit(WorkContext ctx);
 }
