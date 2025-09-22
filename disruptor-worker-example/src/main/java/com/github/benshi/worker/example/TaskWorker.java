@@ -15,7 +15,7 @@ import com.github.benshi.worker.springboot.WorkerPublisher;
 
 import lombok.RequiredArgsConstructor;
 
-// @Component
+@Component
 @RequiredArgsConstructor
 @Worker
 public class TaskWorker implements WorkerHandler {
