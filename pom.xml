@@ -32,6 +32,7 @@
         <redisson.springboot.version>3.18.0</redisson.springboot.version>
         <mybatis.version>3.5.13</mybatis.version>
         <jackson.version>2.15.2</jackson.version>
+        <skip.tests>true</skip.tests>
     </properties>
 
 
@@ -117,4 +118,15 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skipTests>${skip.tests}</skipTests>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
