@@ -76,6 +76,7 @@ public class CacheDisruptorWorker extends BaseDisruptorWorker {
                     WorkerHandlerEvent event = ringBuffer.get(sequence);
                     event.setCtx(ctx);
                     event.setHandler(handler);
+                    event.setLimit(limit);
                     log.debug("Job {} added to ring buffer for processing", ctx.getId());
                 } finally {
                     ringBuffer.publish(sequence);

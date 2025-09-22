@@ -6,4 +6,5 @@ import lombok.Data;
 public class WorkerHandlerEvent {
     private WorkContext ctx;
     private WorkerHandler handler;
+    private Integer limit;
 }

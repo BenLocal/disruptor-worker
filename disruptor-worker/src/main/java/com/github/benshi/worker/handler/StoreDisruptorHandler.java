@@ -30,6 +30,14 @@ public class StoreDisruptorHandler extends BaseDisruptorHandler {
 
             WorkContext ctx = event.getCtx();
             WorkerStatus current = ctx.getCurrentStatus();
+            Integer limit = event.getLimit();
+            if (limit != null && limit > 0) {
+                long currentCount = limitsManager.getCount(ctx.getHandlerId());
+                if (currentCount >= limit) {
+                    log.warn("Job limit reached for handler {}: {} >= {}", ctx.getHandlerId(), currentCount, limit);
+                    return;
+                }
+            }
             // Increment the count
             if (ctx.getHandlerId() != null) {
                 limitsManager.incrementCount(ctx.getHandlerId());
